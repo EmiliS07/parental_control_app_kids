@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Permisos de ubicacion -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />    <!-- Ubicacion aproximada -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />      <!-- Ubicacion exacta -->
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/> <!-- Ubicacion en segundo plano -->
-
 
     <!-- Permisos de ejecucion en segundo plano -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />                   <!-- Notificacion permanente -->
@@ -15,13 +15,16 @@
     <!-- Permisos adicionales para control parental -->
     <uses-permission android:name="android.permission.INTERNET" />               <!-- Permite conexion a internet -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />     <!-- Mostrar notificaciones -->
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" /> <!-- Incia automaticamente la app -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" /> <!-- Inicia automaticamente la app -->
 
-    <!-- 1. Permite hacer respaldo de datos -->
-    <!-- 4. Icono de la app -->
-    <!-- 5. Nombre de la app -->
-    <!-- 6. Icono redondo -->
-    <!-- 8. Tema de la app -->
+    <!-- Permisos para monitoreo de apps y SMS -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />  <!-- Ver que apps usa el niño -->
+    <uses-permission android:name="android.permission.READ_SMS" />               <!-- Leer mensajes SMS -->
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />            <!-- Recibir mensajes SMS en tiempo real -->
+    <uses-permission android:name="android.permission.BIND_DEVICE_ADMIN"
+        tools:ignore="ProtectedPermissions" />  <!-- Controles administrativos del dispositivo -->
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -32,17 +35,12 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Parental_control_child">
 
-        <!-- Nombre de la clase principal -->
-        <!-- Permite que se abra desde afuera la app-->
         <activity
             android:name=".MainActivity"
             android:exported="true">
 
             <intent-filter>
-                <!-- Actividad principal (main) -->
                 <action android:name="android.intent.action.MAIN" />
-
-                <!-- Aparece la app en el menu de apliaciones -->
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
