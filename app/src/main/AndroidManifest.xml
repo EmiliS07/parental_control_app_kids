@@ -36,7 +36,7 @@
         android:theme="@style/Theme.Parental_control_child">
 
         <activity
-            android:name=".MainActivity"
+            android:name=".AppLauncher"
             android:exported="true">
 
             <intent-filter>
@@ -44,6 +44,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- CodePanel -->
+        <activity
+            android:name=".CodePanel"
+            android:exported="false" />
+
+        <!-- PermissionPanel -->
+        <activity
+            android:name=".PermissionPanel"
+            android:exported="false" />
     </application>
 
 </manifest>
