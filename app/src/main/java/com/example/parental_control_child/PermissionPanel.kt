@@ -2,20 +2,29 @@ package com.example.parental_control_child
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
+import android.widget.Button
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
-import android.os.Build
-import android.provider.Settings
 import androidx.core.net.toUri
 
-class MainActivity : AppCompatActivity() {
+class PermissionPanel : AppCompatActivity() {
     private val permissionCode = 100
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        setContentView(R.layout.activity_permission_panel)
 
+        val btnRequestPermissions = findViewById<Button>(R.id.btnRequestPermissions)
+
+        btnRequestPermissions.setOnClickListener {
+            startPermissions()
+        }
+    }
+
+    private fun startPermissions() {
         // Permisos basicos
         val permisos = mutableListOf(
             android.Manifest.permission.ACCESS_FINE_LOCATION,
