@@ -1,10 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- Permisos de ubicacion -->
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />    <!-- Ubicacion aproximada -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />      <!-- Ubicacion exacta -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/> <!-- Ubicacion en segundo plano -->
+
+
+    <!-- Permisos de ejecucion en segundo plano -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />                   <!-- Notificacion permanente -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />          <!-- Servicios de ubicacion -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" /> <!-- No cerrarse nunca -->
+
+    <!-- Permisos adicionales para control parental -->
+    <uses-permission android:name="android.permission.INTERNET" />               <!-- Permite conexion a internet -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />     <!-- Mostrar notificaciones -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" /> <!-- Incia automaticamente la app -->
 
     <!-- 1. Permite hacer respaldo de datos -->
     <!-- 4. Icono de la app -->
