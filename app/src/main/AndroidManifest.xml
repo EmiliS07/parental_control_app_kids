@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- 1. Permite hacer respaldo de datos -->
+    <!-- 4. Icono de la app -->
+    <!-- 5. Nombre de la app -->
+    <!-- 6. Icono redondo -->
+    <!-- 8. Tema de la app -->
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Parental_control_child">
+
+        <!-- Nombre de la clase principal -->
+        <!-- Permite que se abra desde afuera la app-->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+
+            <intent-filter>
+                <!-- Actividad principal (main) -->
+                <action android:name="android.intent.action.MAIN" />
+
+                <!-- Aparece la app en el menu de apliaciones -->
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+</manifest>
