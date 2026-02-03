@@ -12,20 +12,38 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+
         android:text="Easy Control Kids"
+
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.498"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_bias="0.261"
-        tools:ignore="HardcodedText" />
-    <!-- 1. Se ajusta el ancho al texto -->
-    <!-- 2. Se ajusta el alto al texto -->
-    <!-- 3. Texto a mostrar -->
-    <!-- 4. Se pega arriba -->
-    <!-- 5. Se pega abajo -->
-    <!-- 6. Se pega a la izquierda -->
-    <!-- 7. Se pega a la derecha -->
+
+        tools:ignore="HardcodedText"
+    />
+
+    <EditText
+        android:layout_width="160dp"
+        android:layout_height="50dp"
+
+        android:textAlignment="center"
+        android:hint="Codigo"
+
+        android:inputType="number"
+        android:ems="6"
+        android:maxLength="6"
+
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.331"
+
+        tools:ignore="Autofill,HardcodedText,LabelFor"
+    />
+
 
 </androidx.constraintlayout.widget.ConstraintLayout>
