@@ -15,3 +15,4 @@ PACKAGE_USAGE_STATS           - Ver qué apps usa el niño
 BIND_DEVICE_ADMIN             - Controles administrativos (bloquear pantalla, etc.)
 READ_SMS / RECEIVE_SMS        - Monitorear mensajes
 
+Santy es un pendejo
