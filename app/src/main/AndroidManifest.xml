@@ -1,59 +1,50 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.example.parental_control_child">
 
-    <!-- Permisos de ubicacion -->
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />    <!-- Ubicacion aproximada -->
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />      <!-- Ubicacion exacta -->
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/> <!-- Ubicacion en segundo plano -->
-
-    <!-- Permisos de ejecucion en segundo plano -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />                   <!-- Notificacion permanente -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />          <!-- Servicios de ubicacion -->
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" /> <!-- No cerrarse nunca -->
-
-    <!-- Permisos adicionales para control parental -->
-    <uses-permission android:name="android.permission.INTERNET" />               <!-- Permite conexion a internet -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />     <!-- Mostrar notificaciones -->
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" /> <!-- Inicia automaticamente la app -->
-
-    <!-- Permisos para monitoreo de apps y SMS -->
+    <!-- Permisos -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"
+        tools:ignore="CoarseFineLocation" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"
+        tools:ignore="BackgroundLocationPolicy" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
-        tools:ignore="ProtectedPermissions" />  <!-- Ver que apps usa el niño -->
-    <uses-permission android:name="android.permission.READ_SMS" />               <!-- Leer mensajes SMS -->
-    <uses-permission android:name="android.permission.RECEIVE_SMS" />            <!-- Recibir mensajes SMS en tiempo real -->
-    <uses-permission android:name="android.permission.BIND_DEVICE_ADMIN"
-        tools:ignore="ProtectedPermissions" />  <!-- Controles administrativos del dispositivo -->
+        tools:ignore="ProtectedPermissions"/>
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
 
     <application
         android:allowBackup="true"
-        android:dataExtractionRules="@xml/data_extraction_rules"
-        android:fullBackupContent="@xml/backup_rules"
-        android:icon="@mipmap/ic_launcher_round"
-        android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher"
+        android:icon="@mipmap/ic_launcher"
+        android:label="Control Parental"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Parental_control_child">
+        android:theme="@style/Theme.AppCompat.Light.NoActionBar">
 
+        <!-- CodePanel (inicio) -->
         <activity
-            android:name=".AppLauncher"
-            android:exported="true">
-
+            android:name=".CodePanel"
+            android:exported="true"
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- CodePanel -->
+        <!-- PermissionSetup -->
         <activity
-            android:name=".CodePanel"
-            android:exported="false" />
+            android:name=".PermissionSetup"
+            android:exported="false"
+            android:screenOrientation="portrait"/>
 
-        <!-- PermissionPanel -->
+        <!-- HomeActivity (launcher) -->
         <activity
-            android:name=".PermissionPanel"
-            android:exported="false" />
+            android:name=".HomeActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"/>
+
     </application>
 
 </manifest>
