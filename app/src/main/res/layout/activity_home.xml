@@ -1,21 +1,196 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:gravity="center"
-    android:background="#F8F9FA">
+    android:background="#F8F9FA"
+    android:padding="24dp">
 
-    <TextView
-        android:id="@+id/tvWelcome"
-        android:layout_width="wrap_content"
+    <!-- Contenedor principal centrado -->
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Launcher"
-        android:textSize="20sp"
-        android:textColor="#212529"
-        android:textAlignment="center"
+        android:layout_centerInParent="true"
+        android:orientation="vertical"
+        android:gravity="center">
 
-        tools:ignore="HardcodedText" />
+        <!-- Ícono de éxito -->
+        <TextView
+            android:layout_width="120dp"
+            android:layout_height="120dp"
+            android:text="✅"
+            android:textSize="80sp"
+            android:gravity="center"
+            android:background="@drawable/circle_success"
+            android:layout_marginBottom="32dp"/>
 
-</LinearLayout>
+        <!-- Título principal -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="¡Configuración Completa!"
+            android:textSize="28sp"
+            android:textColor="#212529"
+            android:textStyle="bold"
+            android:textAlignment="center"
+            android:layout_marginBottom="12dp"/>
+
+        <!-- Descripción -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Este dispositivo ha sido vinculado y configurado correctamente."
+            android:textSize="16sp"
+            android:textColor="#6C757D"
+            android:textAlignment="center"
+            android:layout_marginBottom="32dp"/>
+
+        <!-- Card de información -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/info_card"
+            android:padding="20dp"
+            android:layout_marginBottom="32dp">
+
+            <!-- Código de vinculación -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="12dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🔗"
+                    android:textSize="24sp"
+                    android:layout_marginEnd="12dp"/>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Código de vinculación"
+                        android:textSize="14sp"
+                        android:textColor="#6C757D"/>
+
+                    <TextView
+                        android:id="@+id/tvLinkCode"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="123456"
+                        android:textSize="18sp"
+                        android:textColor="#212529"
+                        android:textStyle="bold"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#DEE2E6"
+                android:layout_marginVertical="12dp"/>
+
+            <!-- Estado -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🛡️"
+                    android:textSize="24sp"
+                    android:layout_marginEnd="12dp"/>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Estado del dispositivo"
+                        android:textSize="14sp"
+                        android:textColor="#6C757D"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Protegido y monitoreado"
+                        android:textSize="18sp"
+                        android:textColor="#28A745"
+                        android:textStyle="bold"/>
+                </LinearLayout>
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- Mensaje para el tutor -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:background="@drawable/alert_info"
+            android:padding="16dp"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ℹ️"
+                android:textSize="24sp"
+                android:layout_marginEnd="12dp"/>
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Puedes volver al dispositivo del tutor para gestionar este teléfono."
+                android:textSize="14sp"
+                android:textColor="#004085"
+                android:lineSpacingExtra="2dp"/>
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Información técnica en la parte inferior -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:layout_marginBottom="16dp">
+
+        <TextView
+            android:id="@+id/tvDeviceInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Servicio de monitoreo activo"
+            android:textSize="12sp"
+            android:textColor="#28A745"
+            android:drawableStart="@android:drawable/presence_online"
+            android:drawablePadding="6dp"
+            android:layout_marginBottom="4dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Control Parental • v1.0.0"
+            android:textSize="11sp"
+            android:textColor="#ADB5BD"/>
+    </LinearLayout>
+
+</RelativeLayout>
