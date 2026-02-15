@@ -10,4 +10,6 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <color name="button_disabled_background">#E0E0E0</color>
+    <color name="button_disabled_text">#A0A0A0</color>
 </resources>
