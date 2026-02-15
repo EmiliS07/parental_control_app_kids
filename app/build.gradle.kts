@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -37,6 +38,13 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
+    
+    // Importar la BoM para la plataforma Firebase
+    implementation(platform("com.google.firebase:firebase-bom:33.1.1"))
+    // Dependencia para Cloud Firestore (LA CORRECTA)
+    implementation("com.google.firebase:firebase-firestore")
+    implementation(libs.androidx.core.splashscreen)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
