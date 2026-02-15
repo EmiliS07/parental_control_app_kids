@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#9D93E9</color>
+    <!-- Barra de info (Modo Oscuro) -->
+    <color name="up_bar">#1F1F1F</color>
+
+    <!-- Input del codigo (Modo Oscuro) -->
+    <color name="input_bar">#3A3A3A</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="button_disabled_background">#E0E0E0</color>
+    <color name="button_disabled_text">#A0A0A0</color>
+</resources>
