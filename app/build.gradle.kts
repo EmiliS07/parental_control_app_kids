@@ -5,9 +5,7 @@ plugins {
 
 android {
     namespace = "com.example.parental_control_child"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.parental_control_child"
@@ -39,10 +37,12 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     
-    // Importar la BoM para la plataforma Firebase
+    // Firebase BoM and dependencies
     implementation(platform("com.google.firebase:firebase-bom:33.1.1"))
-    // Dependencia para Cloud Firestore (LA CORRECTA)
+    implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.firebase:firebase-messaging")
+    
     implementation(libs.androidx.core.splashscreen)
 
     testImplementation(libs.junit)
