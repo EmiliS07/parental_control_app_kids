@@ -23,7 +23,7 @@ public class PermissionSetup extends AppCompatActivity {
 
     private SharedPreferences prefs;
 
-    // UI Elements (SIN ubicación)
+    // UI Elements
     private LinearLayout stepUsageStats, stepNotifications, stepBattery, stepOverlay, stepAccessibility, stepNotificationListener;
     private TextView tvUsageStatus, tvNotifStatus, tvBatteryStatus, tvOverlayStatus, tvAccessibilityStatus, tvNotifListenerStatus;
     private Button btnUsageStats, btnNotifications, btnBattery, btnOverlay, btnAccessibility, btnNotifListener;
@@ -113,6 +113,11 @@ public class PermissionSetup extends AppCompatActivity {
         boolean hasNotifListener = checkNotificationListenerPermission();
         updateStepStatus(tvNotifListenerStatus, btnNotifListener, hasNotifListener);
 
+        if (hasNotifListener) {
+            // "Patear" el servicio para asegurar que el sistema lo registre correctamente
+            NotificationService.ensureServiceEnabled(this);
+        }
+
         // Habilitar botón finalizar si tiene todos los permisos
         boolean allGranted = hasUsageStats && hasNotifications && hasBattery &&
                 hasOverlay && hasAccessibility && hasNotifListener;
@@ -148,7 +153,7 @@ public class PermissionSetup extends AppCompatActivity {
             return checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
                     == android.content.pm.PackageManager.PERMISSION_GRANTED;
         }
-        return true; // No requerido en Android < 13
+        return true;
     }
 
     private boolean checkBatteryOptimization() {
@@ -243,8 +248,6 @@ public class PermissionSetup extends AppCompatActivity {
         Toast.makeText(this, "Por favor, habilita el acceso a notificaciones", Toast.LENGTH_LONG).show();
     }
 
-    // ========== RESULTADOS ==========
-
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
                                            @NonNull int[] grantResults) {
@@ -253,13 +256,11 @@ public class PermissionSetup extends AppCompatActivity {
     }
 
     private void finishSetup() {
-        // Guardar que completó el setup
         SharedPreferences.Editor editor = prefs.edit();
         editor.putBoolean("permissionsGranted", true);
         editor.putLong("permissionsGrantedAt", System.currentTimeMillis());
         editor.apply();
 
-        // Iniciar servicio de monitoreo
         Intent serviceIntent = new Intent(this, MonitoringService.class);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent);
@@ -269,7 +270,6 @@ public class PermissionSetup extends AppCompatActivity {
 
         Toast.makeText(this, "✅ Configuración completa", Toast.LENGTH_SHORT).show();
 
-        // Ir a HomeActivity
         Intent intent = new Intent(this, HomeActivity.class);
         startActivity(intent);
         finish();

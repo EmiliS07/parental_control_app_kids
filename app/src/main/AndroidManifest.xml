@@ -3,6 +3,11 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.example.parental_control_child">
 
+    <!-- Declaración de visibilidad para Google Play Services -->
+    <queries>
+        <package android:name="com.google.android.gms" />
+    </queries>
+
     <!-- Permisos normales -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
@@ -58,7 +63,7 @@
             android:exported="true"
             android:permission="android.permission.RECEIVE_BOOT_COMPLETED">
             <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.BOOT_COMPLETED"/>
                 <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>

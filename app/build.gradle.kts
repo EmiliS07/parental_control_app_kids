@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "com.example.parental_control_child"
-    compileSdk = 36
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.example.parental_control_child"
         minSdk = 25
-        targetSdk = 36
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
@@ -38,7 +38,7 @@ dependencies {
     implementation(libs.material)
     
     // Firebase BoM and dependencies
-    implementation(platform("com.google.firebase:firebase-bom:33.1.1"))
+    implementation(platform("com.google.firebase:firebase-bom:34.9.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-messaging")

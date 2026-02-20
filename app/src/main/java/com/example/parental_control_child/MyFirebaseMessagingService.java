@@ -20,7 +20,7 @@ import java.util.Map;
 public class MyFirebaseMessagingService extends FirebaseMessagingService {
 
     private static final String TAG = "FCMService";
-    private static final String CHANNEL_ID = "parental_control_channel";
+    private static final String CHANNEL_ID = "parental_control_channel_v2"; // v2 para asegurar importancia alta
 
     @Override
     public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {
@@ -28,45 +28,53 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
         
         Log.d(TAG, "Mensaje recibido de: " + remoteMessage.getFrom());
         
-        // 1. Manejar notificaciones enviadas desde la consola de Firebase o API
-        if (remoteMessage.getNotification() != null) {
-            String title = remoteMessage.getNotification().getTitle();
-            String body = remoteMessage.getNotification().getBody();
+        String title = null;
+        String body = null;
+
+        // 1. Priorizar datos personalizados (útil para cuando la app está abierta)
+        if (remoteMessage.getData().size() > 0) {
+            title = remoteMessage.getData().get("title");
+            body = remoteMessage.getData().get("body");
+            
+            // Si las llaves son diferentes, intentar con "mensaje" o similares si fuera necesario
+            if (title == null) title = "Alerta de Control Parental";
+            if (body == null) body = remoteMessage.getData().get("message");
+        }
+
+        // 2. Si no hay datos, usar la notificación estándar de Firebase
+        if (title == null && remoteMessage.getNotification() != null) {
+            title = remoteMessage.getNotification().getTitle();
+            body = remoteMessage.getNotification().getBody();
+        }
+
+        if (title != null || body != null) {
             showNotification(title, body);
-        } 
-        // 2. Manejar mensajes de datos (Payload) personalizados
-        else if (remoteMessage.getData().size() > 0) {
-            String title = remoteMessage.getData().get("title");
-            String body = remoteMessage.getData().get("body");
-            if (title != null && body != null) {
-                showNotification(title, body);
-            }
         }
     }
 
     private void showNotification(String title, String body) {
         NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 
-        // Crear el canal de notificación para Android 8.0+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
                     CHANNEL_ID,
-                    "Notificaciones de Control Parental",
+                    "Notificaciones de Seguridad",
                     NotificationManager.IMPORTANCE_HIGH
             );
-            channel.setDescription("Canal para alertas de control parental");
+            channel.enableLights(true);
+            channel.enableVibration(true);
             notificationManager.createNotificationChannel(channel);
         }
 
-        // Configurar la acción al tocar la notificación (abrir la app)
-        Intent intent = new Intent(this, CodePanel.class); // Cambiado a CodePanel por ser el Launcher
+        Intent intent = new Intent(this, CodePanel.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent,
                 PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_IMMUTABLE);
 
-        // Construir la notificación
+        // Usamos ic_shield_check como icono de notificación (blanco y transparente) 
+        // para que se vea bien en la barra de estado.
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setSmallIcon(R.mipmap.ic_launcher) // Icono del robot (discreto)
+                .setSmallIcon(R.drawable.ic_shield_check) 
                 .setContentTitle(title)
                 .setContentText(body)
                 .setAutoCancel(true)
@@ -74,14 +82,15 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
                 .setDefaults(NotificationCompat.DEFAULT_ALL)
                 .setContentIntent(pendingIntent);
 
-        // Mostrar la notificación con un ID único basado en el tiempo
         notificationManager.notify((int) System.currentTimeMillis(), builder.build());
     }
 
     @Override
     public void onNewToken(@NonNull String token) {
         super.onNewToken(token);
-        Log.d(TAG, "Nuevo token generado: " + token);
+        Log.d(TAG, "Nuevo token: " + token);
+        // Guardar en SharedPreferences por si el usuario no está logueado aún
+        getSharedPreferences("FCM_PREFS", MODE_PRIVATE).edit().putString("fcm_token", token).apply();
         updateTokenInFirestore(token);
     }
 
