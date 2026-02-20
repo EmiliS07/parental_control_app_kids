@@ -26,9 +26,21 @@ public class HomeActivity extends AppCompatActivity {
             return;
         }
 
+        // Iniciar el servicio de monitoreo para asegurar que esté corriendo
+        startMonitoringService();
+
         // Mostrar pantalla de configuración completa
         setContentView(R.layout.activity_home);
         initializeViews();
+    }
+
+    private void startMonitoringService() {
+        Intent serviceIntent = new Intent(this, MonitoringService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
+        }
     }
 
     @Override
@@ -37,6 +49,9 @@ public class HomeActivity extends AppCompatActivity {
         // Verificar permisos cada vez que vuelve a esta pantalla
         if (!hasRequiredPermissions()) {
             goToPermissionSetup();
+        } else {
+            // Asegurar que el servicio sigue activo
+            startMonitoringService();
         }
     }
 
@@ -61,20 +76,12 @@ public class HomeActivity extends AppCompatActivity {
 
         // Mostrar información del dispositivo
         String deviceModel = Build.MANUFACTURER + " " + Build.MODEL;
-        String androidVersion = "Android " + Build.VERSION.RELEASE;
-
         tvDeviceInfo.setText("Servicio de monitoreo activo • " + deviceModel);
-
-        // TODO: Aquí en el futuro implementaremos:
-        // - Recepción de comandos FCM
-        // - Reporte de actividad al servidor
-        // - Launcher personalizado (si se requiere)
     }
 
     @Override
     public void onBackPressed() {
         // Prevenir que el usuario salga con el botón atrás
-        // Solo mostrar un mensaje
         android.widget.Toast.makeText(this,
                 "Este dispositivo está bajo supervisión parental",
                 android.widget.Toast.LENGTH_SHORT).show();

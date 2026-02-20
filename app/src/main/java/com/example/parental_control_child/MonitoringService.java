@@ -5,6 +5,7 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Intent;
+import android.content.pm.ServiceInfo;
 import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
@@ -21,12 +22,12 @@ import com.google.firebase.firestore.Query;
 public class MonitoringService extends Service {
 
     private static final String TAG = "MonitoringService";
-    private static final String CHANNEL_ID = "ParentalControlChannel";
-    private static final String NOTIF_QUEUE_CHANNEL = "ParentalMessagesChannel";
+    private static final String CHANNEL_ID_SERVICE = "MonitoringServiceChannel";
+    private static final String CHANNEL_ID_ALERTS = "ParentalAlertsChannel";
     private static final int FOREGROUND_ID = 1;
 
     private FirebaseFirestore db;
-    private ListenerRegistration notificationListener;
+    private ListenerRegistration firestoreListener;
 
     @Override
     public void onCreate() {
@@ -37,98 +38,105 @@ public class MonitoringService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        startForeground(FOREGROUND_ID, createForegroundNotification());
+        Notification notification = createServiceNotification();
 
-        // Iniciar la escucha de la cola de notificaciones
-        startListeningForNotifications();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(FOREGROUND_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+        } else {
+            startForeground(FOREGROUND_ID, notification);
+        }
+
+        startListeningToFirestore();
 
         return START_STICKY;
     }
 
-    private void startListeningForNotifications() {
-        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
-        if (currentUser == null) return;
+    private void startListeningToFirestore() {
+        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+        if (user == null) {
+            Log.e(TAG, "No hay usuario autenticado para escuchar notificaciones");
+            return;
+        }
 
-        String childId = currentUser.getUid();
+        String childId = user.getUid();
 
-        // Consulta: Notificaciones para este niño, ordenadas por tiempo
         Query query = db.collection("notifications_queue")
                 .whereEqualTo("toChildId", childId)
-                .orderBy("timestamp", Query.Direction.ASCENDING);
+                .orderBy("timestamp", Query.Direction.DESCENDING)
+                .limit(5);
 
-        notificationListener = query.addSnapshotListener((snapshots, e) -> {
+        if (firestoreListener != null) firestoreListener.remove();
+
+        firestoreListener = query.addSnapshotListener((snapshots, e) -> {
             if (e != null) {
-                Log.e(TAG, "Error escuchando cola: ", e);
+                Log.e(TAG, "Error en Firestore Listener: ", e);
                 return;
             }
 
             if (snapshots != null) {
                 for (DocumentChange dc : snapshots.getDocumentChanges()) {
                     if (dc.getType() == DocumentChange.Type.ADDED) {
-                        // Extraer datos del mensaje
                         String title = dc.getDocument().getString("title");
                         String message = dc.getDocument().getString("message");
                         
-                        // Mostrar notificación local
-                        showLocalNotification(title, message);
-                        
-                        // OPCIONAL: Eliminar el mensaje de la cola tras recibirlo
-                        // dc.getDocument().getReference().delete();
+                        showSystemNotification(title, message);
+
+                        // Eliminar el documento de la cola para no volver a mostrarlo
+                        dc.getDocument().getReference().delete();
                     }
                 }
             }
         });
     }
 
-    private void showLocalNotification(String title, String message) {
+    private void showSystemNotification(String title, String message) {
         NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        int notifId = (int) System.currentTimeMillis();
+        int notificationId = (int) System.currentTimeMillis();
 
-        Notification localNotif = new NotificationCompat.Builder(this, NOTIF_QUEUE_CHANNEL)
-                .setContentTitle(title != null ? title : "Mensaje de Padre")
-                .setContentText(message != null ? message : "")
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID_ALERTS)
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle(title != null ? title : "Mensaje de tus padres")
+                .setContentText(message != null ? message : "")
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_MESSAGE)
                 .setAutoCancel(true)
-                .build();
+                .setDefaults(Notification.DEFAULT_ALL);
 
         if (manager != null) {
-            manager.notify(notifId, localNotif);
+            manager.notify(notificationId, builder.build());
         }
     }
 
     private void createNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationManager manager = getSystemService(NotificationManager.class);
-            
-            // Canal para el servicio persistente
+            if (manager == null) return;
+
             NotificationChannel serviceChannel = new NotificationChannel(
-                    CHANNEL_ID, "Servicio de Monitoreo", NotificationManager.IMPORTANCE_LOW);
+                    CHANNEL_ID_SERVICE, "Servicio de Protección", NotificationManager.IMPORTANCE_LOW);
             
-            // Canal para los mensajes recibidos (importancia alta para que suene)
-            NotificationChannel msgChannel = new NotificationChannel(
-                    NOTIF_QUEUE_CHANNEL, "Mensajes de Padres", NotificationManager.IMPORTANCE_HIGH);
-            
-            if (manager != null) {
-                manager.createNotificationChannel(serviceChannel);
-                manager.createNotificationChannel(msgChannel);
-            }
+            NotificationChannel alertsChannel = new NotificationChannel(
+                    CHANNEL_ID_ALERTS, "Mensajes de Padres", NotificationManager.IMPORTANCE_HIGH);
+            alertsChannel.enableVibration(true);
+            alertsChannel.enableLights(true);
+
+            manager.createNotificationChannel(serviceChannel);
+            manager.createNotificationChannel(alertsChannel);
         }
     }
 
-    private Notification createForegroundNotification() {
-        return new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("Control Parental Activo")
-                .setContentText("Escuchando actualizaciones...")
+    private Notification createServiceNotification() {
+        return new NotificationCompat.Builder(this, CHANNEL_ID_SERVICE)
+                .setContentTitle("Protección activa")
+                .setContentText("Tu dispositivo está protegido por tus padres")
                 .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
-                .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setOngoing(true)
                 .build();
     }
 
     @Override
     public void onDestroy() {
-        if (notificationListener != null) notificationListener.remove();
+        if (firestoreListener != null) firestoreListener.remove();
         super.onDestroy();
     }
 
