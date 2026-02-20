@@ -59,7 +59,6 @@ public class CodePanel extends AppCompatActivity {
             return;
         }
 
-        // MEJORA: Iniciamos sesión anónima de inmediato para tener permisos de lectura
         signInAnonymously();
 
         etCode = findViewById(R.id.etCode);
@@ -95,7 +94,6 @@ public class CodePanel extends AppCompatActivity {
         etCode.setEnabled(false);
         showStatus("Verificando código...", true);
 
-        // Buscamos en "parents" el campo "linkCode"
         db.collection("parents")
                 .whereEqualTo("linkCode", code)
                 .get()
@@ -104,16 +102,19 @@ public class CodePanel extends AppCompatActivity {
                         String parentId = task.getResult().getDocuments().get(0).getId();
                         Log.d(TAG, "Padre encontrado: " + parentId);
                         
-                        if (mAuth.getCurrentUser() == null) {
-                            mAuth.signInAnonymously().addOnCompleteListener(authTask -> {
+                        // Lógica simplificada: confiamos en la sesión de onCreate
+                        FirebaseUser user = mAuth.getCurrentUser();
+                        if (user != null) {
+                            completeLinking(parentId, code);
+                        } else {
+                            // Fallback de emergencia por si la sesión inicial falló
+                             mAuth.signInAnonymously().addOnCompleteListener(authTask -> {
                                 if (authTask.isSuccessful()) completeLinking(parentId, code);
                                 else {
                                     showStatus("❌ Error de autenticación", false);
                                     resetUI();
                                 }
                             });
-                        } else {
-                            completeLinking(parentId, code);
                         }
                     } else {
                         if (!task.isSuccessful()) {
@@ -137,11 +138,9 @@ public class CodePanel extends AppCompatActivity {
     private void completeLinking(String parentId, String code) {
         String childId = mAuth.getCurrentUser().getUid();
 
-        // Obtenemos el token de FCM para enviarlo de una vez al padre
         FirebaseMessaging.getInstance().getToken().addOnCompleteListener(tokenTask -> {
             String fcmToken = tokenTask.isSuccessful() ? tokenTask.getResult() : "";
 
-            // 1. Datos del niño para su propia colección
             Map<String, Object> childData = new HashMap<>();
             childData.put("parentId", parentId);
             childData.put("childId", childId);
@@ -150,7 +149,6 @@ public class CodePanel extends AppCompatActivity {
             childData.put("linkedAt", com.google.firebase.Timestamp.now());
             childData.put("status", "active");
 
-            // 2. Datos para actualizar al padre (Cubrimos múltiples variantes de nombres de campos)
             Map<String, Object> parentUpdate = new HashMap<>();
             parentUpdate.put("childId", childId);
             parentUpdate.put("kidId", childId);             
@@ -158,13 +156,12 @@ public class CodePanel extends AppCompatActivity {
             parentUpdate.put("hasLinkedChild", true);       
             parentUpdate.put("isLinked", true);             
             parentUpdate.put("linkCode", "");               
-            parentUpdate.put("fcmToken", fcmToken); // El padre necesita el token para enviar notificaciones
+            parentUpdate.put("fcmToken", fcmToken);
             parentUpdate.put("lastChildUpdate", com.google.firebase.Timestamp.now());
 
             db.collection("children").document(childId)
                     .set(childData, com.google.firebase.firestore.SetOptions.merge())
                     .addOnSuccessListener(aVoid -> {
-                        // Notificamos al padre en la colección "parents"
                         db.collection("parents").document(parentId)
                                 .update(parentUpdate)
                                 .addOnSuccessListener(v -> {
@@ -174,15 +171,9 @@ public class CodePanel extends AppCompatActivity {
                                     new Handler().postDelayed(this::goToAppLauncher, 1000);
                                 })
                                 .addOnFailureListener(e -> {
-                                    Log.e(TAG, "Error al notificar al padre, intentando set(merge)", e);
-                                    // Si falla update (ej. por reglas), intentamos set con merge
-                                    db.collection("parents").document(parentId)
-                                            .set(parentUpdate, com.google.firebase.firestore.SetOptions.merge())
-                                            .addOnSuccessListener(v -> {
-                                                showStatus("✅ Vinculado correctamente", true);
-                                                saveDeviceLinked(code, parentId);
-                                                new Handler().postDelayed(this::goToAppLauncher, 1000);
-                                            });
+                                    Log.e(TAG, "Error actualizando padre. REVISA LAS REGLAS DE SEGURIDAD.", e);
+                                    showStatus("❌ Error de permisos en servidor", false);
+                                    resetUI();
                                 });
                     })
                     .addOnFailureListener(e -> {

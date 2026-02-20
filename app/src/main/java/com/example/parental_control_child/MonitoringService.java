@@ -3,6 +3,7 @@ package com.example.parental_control_child;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
@@ -54,16 +55,15 @@ public class MonitoringService extends Service {
     private void startListeningToFirestore() {
         FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
         if (user == null) {
-            Log.e(TAG, "No hay usuario autenticado para escuchar notificaciones");
+            Log.e(TAG, "No hay usuario autenticado");
             return;
         }
 
         String childId = user.getUid();
+        Log.d(TAG, "Escuchando notificaciones para UID: " + childId);
 
         Query query = db.collection("notifications_queue")
-                .whereEqualTo("toChildId", childId)
-                .orderBy("timestamp", Query.Direction.DESCENDING)
-                .limit(5);
+                .whereEqualTo("toChildId", childId);
 
         if (firestoreListener != null) firestoreListener.remove();
 
@@ -79,9 +79,9 @@ public class MonitoringService extends Service {
                         String title = dc.getDocument().getString("title");
                         String message = dc.getDocument().getString("message");
                         
+                        Log.d(TAG, "¡MENSAJE RECIBIDO! Mostrando notificación: " + title);
                         showSystemNotification(title, message);
 
-                        // Eliminar el documento de la cola para no volver a mostrarlo
                         dc.getDocument().getReference().delete();
                     }
                 }
@@ -91,20 +91,32 @@ public class MonitoringService extends Service {
 
     private void showSystemNotification(String title, String message) {
         NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (manager == null) {
+            Log.e(TAG, "NotificationManager es nulo, no se puede mostrar la notificación");
+            return;
+        }
+
         int notificationId = (int) System.currentTimeMillis();
 
+        Intent fullScreenIntent = new Intent(this, HomeActivity.class);
+        PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(this, 0,
+                fullScreenIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID_ALERTS)
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setSmallIcon(android.R.drawable.ic_dialog_alert)
                 .setContentTitle(title != null ? title : "Mensaje de tus padres")
                 .setContentText(message != null ? message : "")
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                .setPriority(NotificationCompat.PRIORITY_MAX) 
+                .setCategory(NotificationCompat.CATEGORY_CALL) // Categoría de llamada es la más urgente
+                .setDefaults(Notification.DEFAULT_ALL)
+                .setVibrate(new long[]{0, 500, 100, 500}) // Patrón de vibración
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setAutoCancel(true)
-                .setDefaults(Notification.DEFAULT_ALL);
+                // ¡ESTA ES LA CLAVE!
+                .setFullScreenIntent(fullScreenPendingIntent, true);
 
-        if (manager != null) {
-            manager.notify(notificationId, builder.build());
-        }
+        Log.d(TAG, "Notificando con ID: " + notificationId);
+        manager.notify(notificationId, builder.build());
     }
 
     private void createNotificationChannels() {
@@ -112,13 +124,19 @@ public class MonitoringService extends Service {
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager == null) return;
 
+            // Borrar el canal viejo para asegurar que se aplique la nueva configuración de importancia
+            manager.deleteNotificationChannel(CHANNEL_ID_ALERTS);
+
             NotificationChannel serviceChannel = new NotificationChannel(
                     CHANNEL_ID_SERVICE, "Servicio de Protección", NotificationManager.IMPORTANCE_LOW);
             
+            // Canal para las alertas, con importancia máxima
             NotificationChannel alertsChannel = new NotificationChannel(
-                    CHANNEL_ID_ALERTS, "Mensajes de Padres", NotificationManager.IMPORTANCE_HIGH);
+                    CHANNEL_ID_ALERTS, "Alertas de Padres", NotificationManager.IMPORTANCE_HIGH);
             alertsChannel.enableVibration(true);
-            alertsChannel.enableLights(true);
+            alertsChannel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+            // Opcional: saltar el modo "No molestar"
+            alertsChannel.setBypassDnd(true);
 
             manager.createNotificationChannel(serviceChannel);
             manager.createNotificationChannel(alertsChannel);
@@ -128,7 +146,7 @@ public class MonitoringService extends Service {
     private Notification createServiceNotification() {
         return new NotificationCompat.Builder(this, CHANNEL_ID_SERVICE)
                 .setContentTitle("Protección activa")
-                .setContentText("Tu dispositivo está protegido por tus padres")
+                .setContentText("Tu dispositivo está protegido")
                 .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
                 .setOngoing(true)
                 .build();
