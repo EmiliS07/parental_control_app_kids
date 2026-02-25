@@ -20,6 +20,9 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
 
+import java.util.HashSet;
+import java.util.Set;
+
 public class MonitoringService extends Service {
 
     private static final String TAG = "MonitoringService";
@@ -29,6 +32,7 @@ public class MonitoringService extends Service {
 
     private FirebaseFirestore db;
     private ListenerRegistration firestoreListener;
+    private final Set<String> processedMessages = new HashSet<>();
 
     @Override
     public void onCreate() {
@@ -53,6 +57,8 @@ public class MonitoringService extends Service {
     }
 
     private void startListeningToFirestore() {
+        if (firestoreListener != null) return;
+
         FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
         if (user == null) {
             Log.e(TAG, "No hay usuario autenticado");
@@ -65,8 +71,6 @@ public class MonitoringService extends Service {
         Query query = db.collection("notifications_queue")
                 .whereEqualTo("toChildId", childId);
 
-        if (firestoreListener != null) firestoreListener.remove();
-
         firestoreListener = query.addSnapshotListener((snapshots, e) -> {
             if (e != null) {
                 Log.e(TAG, "Error en Firestore Listener: ", e);
@@ -76,13 +80,22 @@ public class MonitoringService extends Service {
             if (snapshots != null) {
                 for (DocumentChange dc : snapshots.getDocumentChanges()) {
                     if (dc.getType() == DocumentChange.Type.ADDED) {
+                        String docId = dc.getDocument().getId();
+                        
+                        // Evitar procesar el mismo mensaje varias veces en la misma sesión
+                        if (processedMessages.contains(docId)) continue;
+                        processedMessages.add(docId);
+
                         String title = dc.getDocument().getString("title");
                         String message = dc.getDocument().getString("message");
                         
                         Log.d(TAG, "¡MENSAJE RECIBIDO! Mostrando notificación: " + title);
                         showSystemNotification(title, message);
 
-                        dc.getDocument().getReference().delete();
+                        // BORRADO INMEDIATO PARA EVITAR BUCLES
+                        dc.getDocument().getReference().delete()
+                            .addOnSuccessListener(aVoid -> Log.d(TAG, "Documento borrado de la cola"))
+                            .addOnFailureListener(err -> Log.e(TAG, "Error al borrar documento", err));
                     }
                 }
             }
@@ -91,10 +104,7 @@ public class MonitoringService extends Service {
 
     private void showSystemNotification(String title, String message) {
         NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        if (manager == null) {
-            Log.e(TAG, "NotificationManager es nulo, no se puede mostrar la notificación");
-            return;
-        }
+        if (manager == null) return;
 
         int notificationId = (int) System.currentTimeMillis();
 
@@ -104,18 +114,16 @@ public class MonitoringService extends Service {
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID_ALERTS)
                 .setSmallIcon(android.R.drawable.ic_dialog_alert)
-                .setContentTitle(title != null ? title : "Mensaje de tus padres")
+                .setContentTitle(title != null ? title : "Aviso Parental")
                 .setContentText(message != null ? message : "")
                 .setPriority(NotificationCompat.PRIORITY_MAX) 
-                .setCategory(NotificationCompat.CATEGORY_CALL) // Categoría de llamada es la más urgente
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
                 .setDefaults(Notification.DEFAULT_ALL)
-                .setVibrate(new long[]{0, 500, 100, 500}) // Patrón de vibración
+                .setVibrate(new long[]{0, 500, 100, 500})
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setAutoCancel(true)
-                // ¡ESTA ES LA CLAVE!
                 .setFullScreenIntent(fullScreenPendingIntent, true);
 
-        Log.d(TAG, "Notificando con ID: " + notificationId);
         manager.notify(notificationId, builder.build());
     }
 
@@ -124,19 +132,15 @@ public class MonitoringService extends Service {
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager == null) return;
 
-            // Borrar el canal viejo para asegurar que se aplique la nueva configuración de importancia
             manager.deleteNotificationChannel(CHANNEL_ID_ALERTS);
 
             NotificationChannel serviceChannel = new NotificationChannel(
-                    CHANNEL_ID_SERVICE, "Servicio de Protección", NotificationManager.IMPORTANCE_LOW);
+                    CHANNEL_ID_SERVICE, "Protección", NotificationManager.IMPORTANCE_LOW);
             
-            // Canal para las alertas, con importancia máxima
             NotificationChannel alertsChannel = new NotificationChannel(
                     CHANNEL_ID_ALERTS, "Alertas de Padres", NotificationManager.IMPORTANCE_HIGH);
             alertsChannel.enableVibration(true);
             alertsChannel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
-            // Opcional: saltar el modo "No molestar"
-            alertsChannel.setBypassDnd(true);
 
             manager.createNotificationChannel(serviceChannel);
             manager.createNotificationChannel(alertsChannel);
@@ -145,7 +149,7 @@ public class MonitoringService extends Service {
 
     private Notification createServiceNotification() {
         return new NotificationCompat.Builder(this, CHANNEL_ID_SERVICE)
-                .setContentTitle("Protección activa")
+                .setContentTitle("Escudo Parental Activo")
                 .setContentText("Tu dispositivo está protegido")
                 .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
                 .setOngoing(true)
