@@ -25,7 +25,6 @@ import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentChange;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
-import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.SetOptions;
 
 import java.util.Calendar;
@@ -93,7 +92,6 @@ public class MonitoringService extends Service {
 
         Map<String, UsageStats> stats = usm.queryAndAggregateUsageStats(startTime, endTime);
         
-        // Estructura principal
         Map<String, Object> rootData = new HashMap<>();
         Map<String, Object> appsMap = new HashMap<>();
         long totalUsageMillis = 0;
@@ -102,7 +100,7 @@ public class MonitoringService extends Service {
             String packageName = entry.getKey();
             long usageTime = entry.getValue().getTotalTimeInForeground();
             
-            if (usageTime <= 0) continue;
+            if (usageTime < 0) continue;
 
             try {
                 if (pm.getLaunchIntentForPackage(packageName) != null) {
@@ -118,22 +116,22 @@ public class MonitoringService extends Service {
                     appDetails.put("packageName", packageName);
                     appDetails.put("usageTimeMinutes", usageMinutes);
                     
-                    // Estos campos solo se enviarán si el merge decide que no existen
-                    appDetails.put("blocked", false);
-                    appDetails.put("timeLimitMinutes", 0);
-
+                    // IMPORTANTE: NO enviamos 'blocked' ni 'timeLimitMinutes' desde aquí.
+                    // Esto permite que el MonitoringService actualice el tiempo de uso
+                    // sin sobreescribir las restricciones puestas por el padre.
                     appsMap.put(firestoreKey, appDetails);
                 }
             } catch (PackageManager.NameNotFoundException ignored) {}
         }
 
         rootData.put("totalUsageTimeMinutes", totalUsageMillis / (1000 * 60));
-        rootData.put("appsMap", appsMap); // Aquí enviamos el mapa real, no strings con puntos
+        rootData.put("appsMap", appsMap);
+        rootData.put("lastUpdate", com.google.firebase.Timestamp.now());
 
         db.collection("children").document(user.getUid())
                 .set(rootData, SetOptions.merge())
-                .addOnSuccessListener(aVoid -> Log.d(TAG, "Apps y tiempo subidos correctamente"))
-                .addOnFailureListener(e -> Log.e(TAG, "Error al subir datos", e));
+                .addOnSuccessListener(aVoid -> Log.d(TAG, "Sincronización de uso completada"))
+                .addOnFailureListener(e -> Log.e(TAG, "Error al sincronizar uso", e));
     }
 
     private void startListeningToFirestore() {
