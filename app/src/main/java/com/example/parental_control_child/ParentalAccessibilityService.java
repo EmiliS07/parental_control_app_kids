@@ -12,7 +12,12 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -22,7 +27,18 @@ public class ParentalAccessibilityService extends AccessibilityService {
     private FirebaseFirestore db;
     private ListenerRegistration blockListener;
     private final Set<String> blockedPackages = new HashSet<>();
+    private final Map<String, TimeRange> appTimeRanges = new HashMap<>();
     private String lastBlockedAppToast = "";
+
+    private static class TimeRange {
+        String startTime;
+        String endTime;
+
+        TimeRange(String startTime, String endTime) {
+            this.startTime = startTime;
+            this.endTime = endTime;
+        }
+    }
 
     @Override
     protected void onServiceConnected() {
@@ -30,7 +46,6 @@ public class ParentalAccessibilityService extends AccessibilityService {
         db = FirebaseFirestore.getInstance();
         
         AccessibilityServiceInfo info = new AccessibilityServiceInfo();
-        // Escuchamos múltiples eventos para asegurar que no se escape nada
         info.eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED | 
                          AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED;
         info.feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC;
@@ -51,8 +66,6 @@ public class ParentalAccessibilityService extends AccessibilityService {
         }
 
         String uid = user.getUid();
-        Log.d(TAG, ">>> INICIANDO ESCUCHA PARA UID: " + uid);
-
         if (blockListener != null) blockListener.remove();
 
         blockListener = db.collection("children").document(uid)
@@ -64,24 +77,35 @@ public class ParentalAccessibilityService extends AccessibilityService {
 
                     if (snapshot != null && snapshot.exists()) {
                         updateBlockedList(snapshot);
-                    } else {
-                        Log.w(TAG, "El documento del niño no existe en Firestore.");
                     }
                 });
     }
 
     private void updateBlockedList(DocumentSnapshot snapshot) {
-        Set<String> newList = new HashSet<>();
+        Set<String> newBlockedList = new HashSet<>();
+        Map<String, TimeRange> newTimeRanges = new HashMap<>();
+        
         try {
             Map<String, Object> appsMap = (Map<String, Object>) snapshot.get("appsMap");
             if (appsMap != null) {
                 for (Object value : appsMap.values()) {
                     if (value instanceof Map) {
                         Map<String, Object> appData = (Map<String, Object>) value;
-                        Boolean isBlocked = (Boolean) appData.get("blocked");
                         String pkg = (String) appData.get("packageName");
-                        if (isBlocked != null && isBlocked && pkg != null) {
-                            newList.add(pkg.trim());
+                        if (pkg == null) continue;
+                        pkg = pkg.trim();
+
+                        // 1. Verificar bloqueo directo
+                        Boolean isBlocked = (Boolean) appData.get("blocked");
+                        if (isBlocked != null && isBlocked) {
+                            newBlockedList.add(pkg);
+                        }
+
+                        // 2. Verificar rango de tiempo
+                        String startTime = (String) appData.get("startTime");
+                        String endTime = (String) appData.get("endTime");
+                        if (startTime != null && !startTime.isEmpty() && endTime != null && !endTime.isEmpty()) {
+                            newTimeRanges.put(pkg, new TimeRange(startTime, endTime));
                         }
                     }
                 }
@@ -92,34 +116,64 @@ public class ParentalAccessibilityService extends AccessibilityService {
 
         synchronized (blockedPackages) {
             blockedPackages.clear();
-            blockedPackages.addAll(newList);
+            blockedPackages.addAll(newBlockedList);
+            appTimeRanges.clear();
+            appTimeRanges.putAll(newTimeRanges);
         }
-        Log.d(TAG, "LISTA ACTUALIZADA: " + blockedPackages.size() + " apps: " + blockedPackages);
+        Log.d(TAG, "Sincronización: " + blockedPackages.size() + " apps bloqueadas, " + appTimeRanges.size() + " con horario.");
     }
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        // Verificamos el paquete en cada cambio de estado de ventana
         if (event.getPackageName() == null) return;
-        
         String pkgName = event.getPackageName().toString();
-        
-        // Evitar bucle infinito con nuestra propia app o el sistema
         if (pkgName.equals(getPackageName()) || pkgName.equals("android")) return;
 
-        boolean block;
+        boolean shouldBlock = false;
+
         synchronized (blockedPackages) {
-            block = blockedPackages.contains(pkgName);
+            // Caso 1: Bloqueo manual total
+            if (blockedPackages.contains(pkgName)) {
+                shouldBlock = true;
+            } 
+            // Caso 2: Bloqueo por horario
+            else if (appTimeRanges.containsKey(pkgName)) {
+                TimeRange range = appTimeRanges.get(pkgName);
+                if (isTimeInRange(range.startTime, range.endTime)) {
+                    shouldBlock = true;
+                }
+            }
         }
 
-        if (block) {
-            Log.d(TAG, "!!! INTENTO DE ACCESO A APP BLOQUEADA: " + pkgName);
+        if (shouldBlock) {
             performGlobalAction(GLOBAL_ACTION_HOME);
-            
             if (!lastBlockedAppToast.equals(pkgName)) {
-                Toast.makeText(this, "⚠️ Aplicación bloqueada", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "⚠️ Aplicación bloqueada por horario", Toast.LENGTH_SHORT).show();
                 lastBlockedAppToast = pkgName;
             }
+        }
+    }
+
+    private boolean isTimeInRange(String start, String end) {
+        try {
+            SimpleDateFormat sdf = new SimpleDateFormat("HH:mm", Locale.getDefault());
+            String currentTimeStr = sdf.format(new Date());
+            
+            Date now = sdf.parse(currentTimeStr);
+            Date startTime = sdf.parse(start);
+            Date endTime = sdf.parse(end);
+
+            if (now == null || startTime == null || endTime == null) return false;
+
+            // Manejo de rangos que cruzan la medianoche (ej: 22:00 a 06:00)
+            if (endTime.before(startTime)) {
+                return now.after(startTime) || now.before(endTime);
+            } else {
+                return now.after(startTime) && now.before(endTime);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error comparando horas: " + e.getMessage());
+            return false;
         }
     }
 
