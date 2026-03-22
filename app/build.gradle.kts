@@ -45,6 +45,8 @@ dependencies {
     implementation("com.google.firebase:firebase-storage")
     
     implementation(libs.androidx.core.splashscreen)
+    implementation(libs.androidx.work.runtime)
+    implementation(libs.play.services.location)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

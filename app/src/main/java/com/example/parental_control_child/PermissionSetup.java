@@ -1,9 +1,11 @@
 package com.example.parental_control_child;
 
+import android.Manifest;
 import android.app.AppOpsManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -16,24 +18,32 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.work.OneTimeWorkRequest;
+import androidx.work.WorkManager;
+
+import com.google.firebase.auth.FirebaseAuth;
 
 public class PermissionSetup extends AppCompatActivity {
 
+    private static final int REQUEST_LOCATION = 103;
+    private static final int REQUEST_BACKGROUND_LOCATION = 104;
     private static final int REQUEST_NOTIFICATION = 102;
 
     private SharedPreferences prefs;
-
-    // UI Elements
-    private TextView tvUsageStatus, tvNotifStatus, tvBatteryStatus, tvOverlayStatus, tvAccessibilityStatus, tvNotifListenerStatus;
-    private Button btnUsageStats, btnNotifications, btnBattery, btnOverlay, btnAccessibility, btnNotifListener;
+    private TextView tvUsageStatus, tvLocationStatus, tvNotifStatus, tvBatteryStatus, tvOverlayStatus, tvAccessibilityStatus, tvNotifListenerStatus;
+    private Button btnUsageStats, btnLocation, btnNotifications, btnBattery, btnOverlay, btnAccessibility, btnNotifListener;
     private Button btnFinish;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_permission_setup);
-
         prefs = getSharedPreferences("ParentalControl", MODE_PRIVATE);
+        
+        // Asegurar que hay una sesión iniciada para que el Worker tenga UID
+        if (FirebaseAuth.getInstance().getCurrentUser() == null) {
+            FirebaseAuth.getInstance().signInAnonymously();
+        }
 
         initViews();
         updatePermissionStatus();
@@ -46,73 +56,61 @@ public class PermissionSetup extends AppCompatActivity {
     }
 
     private void initViews() {
-        // Step 1: Uso de apps
         tvUsageStatus = findViewById(R.id.tvUsageStatus);
         btnUsageStats = findViewById(R.id.btnUsageStats);
         btnUsageStats.setOnClickListener(v -> requestUsageStatsPermission());
 
-        // Step 2: Notificaciones
+        tvLocationStatus = findViewById(R.id.tvLocationStatus);
+        btnLocation = findViewById(R.id.btnLocation);
+        btnLocation.setOnClickListener(v -> requestLocationPermission());
+
         tvNotifStatus = findViewById(R.id.tvNotifStatus);
         btnNotifications = findViewById(R.id.btnNotifications);
         btnNotifications.setOnClickListener(v -> requestNotificationPermission());
 
-        // Step 3: Batería
         tvBatteryStatus = findViewById(R.id.tvBatteryStatus);
         btnBattery = findViewById(R.id.btnBattery);
         btnBattery.setOnClickListener(v -> requestBatteryOptimization());
 
-        // Step 4: Overlay
         tvOverlayStatus = findViewById(R.id.tvOverlayStatus);
         btnOverlay = findViewById(R.id.btnOverlay);
         btnOverlay.setOnClickListener(v -> requestOverlayPermission());
 
-        // Step 5: Accesibilidad
         tvAccessibilityStatus = findViewById(R.id.tvAccessibilityStatus);
         btnAccessibility = findViewById(R.id.btnAccessibility);
         btnAccessibility.setOnClickListener(v -> requestAccessibilityPermission());
 
-        // Step 6: Listener de notificaciones
         tvNotifListenerStatus = findViewById(R.id.tvNotifListenerStatus);
         btnNotifListener = findViewById(R.id.btnNotifListener);
         btnNotifListener.setOnClickListener(v -> requestNotificationListenerPermission());
 
-        // Botón finalizar
         btnFinish = findViewById(R.id.btnFinish);
         btnFinish.setOnClickListener(v -> finishSetup());
     }
 
     private void updatePermissionStatus() {
-        // 1. Uso de apps
         boolean hasUsageStats = checkUsageStatsPermission();
         updateStepStatus(tvUsageStatus, btnUsageStats, hasUsageStats);
 
-        // 2. Notificaciones (Android 13+)
+        boolean hasLocation = checkLocationPermission();
+        updateStepStatus(tvLocationStatus, btnLocation, hasLocation);
+
         boolean hasNotifications = checkNotificationPermission();
         updateStepStatus(tvNotifStatus, btnNotifications, hasNotifications);
 
-        // 3. Batería
         boolean hasBattery = checkBatteryOptimization();
         updateStepStatus(tvBatteryStatus, btnBattery, hasBattery);
 
-        // 4. Overlay
         boolean hasOverlay = checkOverlayPermission();
         updateStepStatus(tvOverlayStatus, btnOverlay, hasOverlay);
 
-        // 5. Accesibilidad
         boolean hasAccessibility = checkAccessibilityPermission();
         updateStepStatus(tvAccessibilityStatus, btnAccessibility, hasAccessibility);
 
-        // 6. Notification Listener
         boolean hasNotifListener = checkNotificationListenerPermission();
         updateStepStatus(tvNotifListenerStatus, btnNotifListener, hasNotifListener);
 
-        if (hasNotifListener) {
-            // "Patear" el servicio para asegurar que el sistema lo registre correctamente
-            NotificationService.ensureServiceEnabled(this);
-        }
-
-        // Habilitar botón finalizar si tiene todos los permisos
-        boolean allGranted = hasUsageStats && hasNotifications && hasBattery &&
+        boolean allGranted = hasUsageStats && hasLocation && hasNotifications && hasBattery &&
                 hasOverlay && hasAccessibility && hasNotifListener;
         btnFinish.setEnabled(allGranted);
         btnFinish.setAlpha(allGranted ? 1.0f : 0.5f);
@@ -132,116 +130,86 @@ public class PermissionSetup extends AppCompatActivity {
         }
     }
 
-    // ========== VERIFICAR PERMISOS ==========
-
     private boolean checkUsageStatsPermission() {
         AppOpsManager appOps = (AppOpsManager) getSystemService(Context.APP_OPS_SERVICE);
-        int mode = appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS,
-                android.os.Process.myUid(), getPackageName());
+        int mode = appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), getPackageName());
         return mode == AppOpsManager.MODE_ALLOWED;
+    }
+
+    private boolean checkLocationPermission() {
+        boolean fineLocation = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            boolean backgroundLocation = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED;
+            return fineLocation && backgroundLocation;
+        }
+        return fineLocation;
     }
 
     private boolean checkNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            return ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS)
-                    == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            return ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
         }
         return true;
     }
 
     private boolean checkBatteryOptimization() {
-        String packageName = getPackageName();
         android.os.PowerManager pm = (android.os.PowerManager) getSystemService(Context.POWER_SERVICE);
-        return pm.isIgnoringBatteryOptimizations(packageName);
+        return pm.isIgnoringBatteryOptimizations(getPackageName());
     }
 
-    private boolean checkOverlayPermission() {
-        return Settings.canDrawOverlays(this);
-    }
+    private boolean checkOverlayPermission() { return Settings.canDrawOverlays(this); }
 
     private boolean checkAccessibilityPermission() {
-        int accessibilityEnabled = 0;
-        try {
-            accessibilityEnabled = Settings.Secure.getInt(
-                    getContentResolver(),
-                    Settings.Secure.ACCESSIBILITY_ENABLED
-            );
-        } catch (Settings.SettingNotFoundException ignored) {
-        }
-
-        if (accessibilityEnabled == 1) {
-            String services = Settings.Secure.getString(
-                    getContentResolver(),
-                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-            );
-            if (services != null) {
-                return services.contains(getPackageName());
-            }
-        }
-        return false;
+        String enabledServices = Settings.Secure.getString(getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+        return enabledServices != null && enabledServices.contains(getPackageName());
     }
 
     private boolean checkNotificationListenerPermission() {
-        String listeners = Settings.Secure.getString(
-                getContentResolver(),
-                "enabled_notification_listeners"
-        );
+        String listeners = Settings.Secure.getString(getContentResolver(), "enabled_notification_listeners");
         return listeners != null && listeners.contains(getPackageName());
     }
 
-    // ========== SOLICITAR PERMISOS ==========
+    private void requestUsageStatsPermission() { startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)); }
 
-    private void requestUsageStatsPermission() {
-        Intent intent = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
-        startActivity(intent);
-        Toast.makeText(this, "Por favor, habilita el acceso de uso", Toast.LENGTH_LONG).show();
+    private void requestLocationPermission() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, REQUEST_LOCATION);
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "Selecciona 'Permitir todo el tiempo' para el rastreo continuo", Toast.LENGTH_LONG).show();
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION}, REQUEST_BACKGROUND_LOCATION);
+        }
     }
 
     private void requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ActivityCompat.requestPermissions(this,
-                    new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, REQUEST_NOTIFICATION);
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQUEST_NOTIFICATION);
         }
     }
 
     private void requestBatteryOptimization() {
-        Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-        intent.setData(Uri.parse("package:" + getPackageName()));
+        Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName()));
         startActivity(intent);
-        Toast.makeText(this, "Por favor, desactiva la optimización de batería", Toast.LENGTH_LONG).show();
     }
 
     private void requestOverlayPermission() {
-        Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:" + getPackageName()));
-        startActivity(intent);
-        Toast.makeText(this, "Por favor, habilita 'Mostrar sobre otras apps'", Toast.LENGTH_LONG).show();
+        startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName())));
     }
 
-    private void requestAccessibilityPermission() {
-        Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
-        startActivity(intent);
-        Toast.makeText(this, "Por favor, habilita el servicio de accesibilidad", Toast.LENGTH_LONG).show();
-    }
+    private void requestAccessibilityPermission() { startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)); }
 
-    private void requestNotificationListenerPermission() {
-        Intent intent = new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);
-        startActivity(intent);
-        Toast.makeText(this, "Por favor, habilita el acceso a notificaciones", Toast.LENGTH_LONG).show();
-    }
+    private void requestNotificationListenerPermission() { startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)); }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
-                                           @NonNull int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         updatePermissionStatus();
     }
 
     private void finishSetup() {
-        SharedPreferences.Editor editor = prefs.edit();
-        editor.putBoolean("permissionsGranted", true);
-        editor.putLong("permissionsGrantedAt", System.currentTimeMillis());
-        editor.apply();
+        prefs.edit().putBoolean("permissionsGranted", true).apply();
+        
+        // Ejecución inmediata de prueba
+        WorkManager.getInstance(this).enqueue(new OneTimeWorkRequest.Builder(LocationWorker.class).build());
 
         Intent serviceIntent = new Intent(this, MonitoringService.class);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -250,10 +218,7 @@ public class PermissionSetup extends AppCompatActivity {
             startService(serviceIntent);
         }
 
-        Toast.makeText(this, "✅ Configuración completa", Toast.LENGTH_SHORT).show();
-
-        Intent intent = new Intent(this, HomeActivity.class);
-        startActivity(intent);
+        startActivity(new Intent(this, HomeActivity.class));
         finish();
     }
 }

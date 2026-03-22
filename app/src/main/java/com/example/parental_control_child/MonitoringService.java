@@ -23,6 +23,9 @@ import android.os.Looper;
 import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
+import androidx.work.ExistingPeriodicWorkPolicy;
+import androidx.work.PeriodicWorkRequest;
+import androidx.work.WorkManager;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
@@ -40,6 +43,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 public class MonitoringService extends Service {
 
@@ -82,11 +86,26 @@ public class MonitoringService extends Service {
         
         startListeningToFirestore();
         syncAppsAndUsage();
+        scheduleLocationUpdates();
         
         usageHandler.removeCallbacks(usageRunnable);
         usageHandler.postDelayed(usageRunnable, USAGE_UPLOAD_INTERVAL);
         
         return START_STICKY;
+    }
+
+    private void scheduleLocationUpdates() {
+        PeriodicWorkRequest locationWorkRequest =
+                new PeriodicWorkRequest.Builder(LocationWorker.class, 15, TimeUnit.MINUTES)
+                        .addTag("LocationUpdateWork")
+                        .build();
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+                "LocationUpdateWork",
+                ExistingPeriodicWorkPolicy.KEEP,
+                locationWorkRequest
+        );
+        Log.d(TAG, "Tarea de ubicación programada cada 15 minutos");
     }
 
     private void syncAppsAndUsage() {
