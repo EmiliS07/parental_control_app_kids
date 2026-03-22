@@ -35,33 +35,48 @@ public class LocationWorker extends Worker {
     @NonNull
     @Override
     public Result doWork() {
-        Log.d(TAG, "Iniciando tarea de ubicación...");
+        Log.d(TAG, "--- [INICIO] Ejecutando tarea de ubicación ---");
 
-        String uid = FirebaseAuth.getInstance().getUid();
-        if (uid == null) {
-            Log.e(TAG, "No hay usuario autenticado");
-            return Result.failure();
+        FirebaseAuth auth = FirebaseAuth.getInstance();
+        
+        // 1. Verificar/Forzar Autenticación
+        if (auth.getCurrentUser() == null) {
+            Log.d(TAG, "No hay sesión activa. Intentando login anónimo...");
+            try {
+                Tasks.await(auth.signInAnonymously(), 10, TimeUnit.SECONDS);
+                Log.d(TAG, "Login anónimo exitoso: " + auth.getUid());
+            } catch (Exception e) {
+                Log.e(TAG, "Error crítico: No se pudo autenticar al niño: " + e.getMessage());
+                return Result.retry();
+            }
         }
 
+        String uid = auth.getUid();
+        if (uid == null) return Result.failure();
+
         try {
+            // 2. Obtener ubicación con GPS (espera hasta 25 seg)
             FusedLocationProviderClient locationClient = LocationServices.getFusedLocationProviderClient(getApplicationContext());
             
-            // Forzar la obtención de la ubicación actual de forma síncrona (espera hasta 20 seg)
+            Log.d(TAG, "Solicitando ubicación al GPS...");
             @SuppressLint("MissingPermission")
             Location location = Tasks.await(
                     locationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null),
-                    20, TimeUnit.SECONDS
+                    25, TimeUnit.SECONDS
             );
 
             if (location != null) {
+                Log.d(TAG, "Coordenadas obtenidas: " + location.getLatitude() + ", " + location.getLongitude());
+                
+                // 3. Guardar en Firestore
                 saveToFirestoreSync(uid, location);
                 return Result.success();
             } else {
-                Log.w(TAG, "No se pudo obtener la ubicación (es null)");
+                Log.w(TAG, "El GPS no devolvió ubicación. ¿Está el GPS encendido?");
                 return Result.retry();
             }
         } catch (Exception e) {
-            Log.e(TAG, "Error en LocationWorker: " + e.getMessage());
+            Log.e(TAG, "Error durante la ejecución: " + e.getMessage());
             return Result.retry();
         }
     }
@@ -78,11 +93,13 @@ public class LocationWorker extends Worker {
         Map<String, Object> update = new HashMap<>();
         update.put("lastLocation", lastLocation);
 
-        // Usar Tasks.await para asegurar que el Worker no termine hasta que Firestore guarde
-        Tasks.await(db.collection("children").document(uid)
-                .set(update, SetOptions.merge()));
+        Log.d(TAG, "Subiendo datos a Firestore para UID: " + uid);
         
-        Log.d(TAG, "Ubicación guardada con éxito en Firestore");
+        // El document(uid) debe coincidir exactamente con el de la colección children
+        Tasks.await(db.collection("children").document(uid)
+                .set(update, SetOptions.merge()), 15, TimeUnit.SECONDS);
+        
+        Log.d(TAG, "✅ UBICACIÓN ACTUALIZADA EN FIRESTORE");
     }
 
     private String getWifiSSID() {
