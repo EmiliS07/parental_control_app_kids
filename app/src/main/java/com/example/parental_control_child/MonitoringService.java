@@ -150,7 +150,7 @@ public class MonitoringService extends Service {
                         for (String key : appsMapToUpdate.keySet()) {
                             Map<String, Object> appInfo = (Map<String, Object>) appsMapToUpdate.get(key);
                             String pkg = (String) appInfo.get("packageName");
-                            
+
                             boolean hasIcon = false;
                             if (finalCurrentAppsMap.containsKey(key)) {
                                 Map<String, Object> existing = (Map<String, Object>) finalCurrentAppsMap.get(key);
@@ -171,7 +171,7 @@ public class MonitoringService extends Service {
             PackageManager pm = getPackageManager();
             Drawable icon = pm.getApplicationIcon(packageName);
             Bitmap bitmap = drawableToBitmap(icon);
-            
+
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             bitmap.compress(Bitmap.CompressFormat.PNG, 70, baos); // Comprimimos para rapidez
             byte[] data = baos.toByteArray();
