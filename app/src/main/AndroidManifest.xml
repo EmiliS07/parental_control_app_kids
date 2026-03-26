@@ -62,14 +62,17 @@
             android:exported="false"
             android:screenOrientation="portrait"/>
 
-        <!-- BlockedActivity -->
+        <!-- BlockedActivity (Configurada como ventana de emergencia independiente) -->
         <activity
             android:name=".BlockedActivity"
             android:exported="false"
             android:excludeFromRecents="true"
             android:noHistory="true"
-            android:launchMode="singleTask"
-            android:theme="@style/Theme.AppCompat.NoActionBar"
+            android:launchMode="singleInstance"
+            android:taskAffinity="com.example.parental_control_child.blocker"
+            android:theme="@style/Theme.BlockedAlert"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
             android:screenOrientation="portrait"/>
 
         <!-- BroadcastReceiver para BOOT_COMPLETED -->

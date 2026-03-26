@@ -19,10 +19,8 @@ import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 public class ParentalAccessibilityService extends AccessibilityService {
 
@@ -30,9 +28,9 @@ public class ParentalAccessibilityService extends AccessibilityService {
     private FirebaseFirestore db;
     private ListenerRegistration blockListener;
     
-    // Configuración de apps sincronizada desde Firestore
     private final Map<String, AppConfig> appConfigs = new HashMap<>();
     private String lastBlockedPackage = "";
+    private long lastBlockTime = 0;
 
     private static class AppConfig {
         String packageName;
@@ -59,7 +57,7 @@ public class ParentalAccessibilityService extends AccessibilityService {
         info.eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED;
         info.feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC;
         info.flags = AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS;
-        info.notificationTimeout = 100;
+        info.notificationTimeout = 50; // Más rápido
         setServiceInfo(info);
 
         startListeningToFirestore();
@@ -118,7 +116,10 @@ public class ParentalAccessibilityService extends AccessibilityService {
         if (event.getPackageName() == null) return;
 
         String pkgName = event.getPackageName().toString();
-        if (pkgName.equals(getPackageName()) || pkgName.equals("android") || pkgName.contains("launcher")) return;
+        
+        // No bloquear nuestra propia app, ni el sistema, ni el launcher
+        if (pkgName.equals(getPackageName()) || pkgName.equals("android") || 
+            pkgName.contains("launcher") || pkgName.contains("settings")) return;
 
         checkAndEnforce(pkgName);
     }
@@ -133,19 +134,16 @@ public class ParentalAccessibilityService extends AccessibilityService {
 
         String reason = null;
 
-        // 1. Bloqueo manual
         if (config.blocked) {
             reason = "Esta aplicación ha sido bloqueada por tus padres.";
-        }
-        // 2. Límite de tiempo
-        else if (config.timeLimitMinutes > 0) {
+        } else if (config.timeLimitMinutes > 0) {
             long currentUsage = getTodayUsageMinutes(pkgName);
             if (currentUsage >= config.timeLimitMinutes) {
-                reason = "Has alcanzado el límite de tiempo diario para esta aplicación (" + config.timeLimitMinutes + " min).";
+                reason = "Has alcanzado el límite de tiempo diario (" + config.timeLimitMinutes + " min).";
             }
         }
-        // 3. Rango horario
-        if (reason == null && config.startTime != null && config.endTime != null && !config.startTime.isEmpty() && !config.endTime.isEmpty()) {
+
+        if (reason == null && config.startTime != null && config.endTime != null && !config.startTime.isEmpty()) {
             if (isTimeInRestrictedRange(config.startTime, config.endTime)) {
                 reason = "No puedes usar esta aplicación en este horario (" + config.startTime + " - " + config.endTime + ").";
             }
@@ -159,15 +157,12 @@ public class ParentalAccessibilityService extends AccessibilityService {
     private long getTodayUsageMinutes(String packageName) {
         UsageStatsManager usm = (UsageStatsManager) getSystemService(Context.USAGE_STATS_SERVICE);
         if (usm == null) return 0;
-
         Calendar calendar = Calendar.getInstance();
         long endTime = calendar.getTimeInMillis();
         calendar.set(Calendar.HOUR_OF_DAY, 0);
         calendar.set(Calendar.MINUTE, 0);
         calendar.set(Calendar.SECOND, 0);
-        long startTime = calendar.getTimeInMillis();
-
-        Map<String, UsageStats> stats = usm.queryAndAggregateUsageStats(startTime, endTime);
+        Map<String, UsageStats> stats = usm.queryAndAggregateUsageStats(calendar.getTimeInMillis(), endTime);
         if (stats.containsKey(packageName)) {
             return stats.get(packageName).getTotalTimeInForeground() / (1000 * 60);
         }
@@ -181,27 +176,28 @@ public class ParentalAccessibilityService extends AccessibilityService {
             Date now = sdf.parse(nowStr);
             Date startDate = sdf.parse(start);
             Date endDate = sdf.parse(end);
-
             if (now == null || startDate == null || endDate == null) return false;
-
-            if (endDate.before(startDate)) {
-                // Rango cruza medianoche (ej: 22:00 a 07:00)
-                return now.after(startDate) || now.before(endDate);
-            } else {
-                return now.after(startDate) && now.before(endDate);
-            }
-        } catch (Exception e) {
-            return false;
-        }
+            if (endDate.before(startDate)) return now.after(startDate) || now.before(endDate);
+            else return now.after(startDate) && now.before(endDate);
+        } catch (Exception e) { return false; }
     }
 
     private void blockApp(String pkgName, String reason) {
-        // Volver a Home
+        long currentTime = System.currentTimeMillis();
+        // Evitar lanzamientos múltiples en menos de 2 segundos
+        if (pkgName.equals(lastBlockedPackage) && (currentTime - lastBlockTime < 2000)) return;
+        
+        lastBlockedPackage = pkgName;
+        lastBlockTime = currentTime;
+
+        // 1. Mandar al Home inmediatamente
         performGlobalAction(GLOBAL_ACTION_HOME);
 
-        // Mostrar actividad de bloqueo
+        // 2. Mostrar alerta de emergencia (en una nueva tarea independiente)
         Intent intent = new Intent(this, BlockedActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK 
+                      | Intent.FLAG_ACTIVITY_MULTIPLE_TASK 
+                      | Intent.FLAG_ACTIVITY_NO_ANIMATION);
         intent.putExtra("reason", reason);
         intent.putExtra("packageName", pkgName);
         startActivity(intent);

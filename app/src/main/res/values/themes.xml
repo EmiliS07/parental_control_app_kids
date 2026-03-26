@@ -13,4 +13,11 @@
 
         <item name="android:windowBackground">@color/background</item>
     </style>
+
+    <style name="Theme.BlockedAlert" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowAnimationStyle">@android:style/Animation.Dialog</item>
+        <item name="android:backgroundDimEnabled">true</item>
+    </style>
 </resources>
