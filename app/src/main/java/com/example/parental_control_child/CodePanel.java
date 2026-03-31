@@ -65,13 +65,20 @@ public class CodePanel extends AppCompatActivity {
         btnLink = findViewById(R.id.btnLink);
         tvStatus = findViewById(R.id.tvStatus);
 
+        // Aseguramos que el botón empiece deshabilitado
+        btnLink.setEnabled(false);
+
+        // Escucha cambios en el texto para habilitar el botón solo con 6 dígitos
         etCode.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                btnLink.setEnabled(s.length() == 6);
+                // Solo se puede presionar si se han ingresado 6 caracteres
+                btnLink.setEnabled(s.toString().trim().length() == 6);
             }
+
             @Override
             public void afterTextChanged(Editable s) {}
         });
@@ -90,24 +97,26 @@ public class CodePanel extends AppCompatActivity {
 
     private void validateAndLink() {
         String code = etCode.getText().toString().trim();
+        
+        // Deshabilitar UI durante la verificación
         btnLink.setEnabled(false);
         etCode.setEnabled(false);
-        showStatus("Verificando código...", true);
+        showStatus("Verificando código en la base de datos...", true);
 
+        // BUSQUEDA EN LA BASE DE DATOS (Firestore)
         db.collection("parents")
                 .whereEqualTo("linkCode", code)
                 .get()
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful() && task.getResult() != null && !task.getResult().isEmpty()) {
+                        // El código existe en la base de datos
                         String parentId = task.getResult().getDocuments().get(0).getId();
                         Log.d(TAG, "Padre encontrado: " + parentId);
                         
-                        // Lógica simplificada: confiamos en la sesión de onCreate
                         FirebaseUser user = mAuth.getCurrentUser();
                         if (user != null) {
                             completeLinking(parentId, code);
                         } else {
-                            // Fallback de emergencia por si la sesión inicial falló
                              mAuth.signInAnonymously().addOnCompleteListener(authTask -> {
                                 if (authTask.isSuccessful()) completeLinking(parentId, code);
                                 else {
@@ -117,12 +126,13 @@ public class CodePanel extends AppCompatActivity {
                             });
                         }
                     } else {
+                        // El código NO existe o hubo error
                         if (!task.isSuccessful()) {
                             Log.e(TAG, "Error Firestore: ", task.getException());
-                            showStatus("❌ Error de conexión con el servidor", false);
+                            showStatus("❌ Error de conexión", false);
                         } else {
-                            Log.d(TAG, "No se encontró el código: " + code);
-                            showStatus("❌ Código inválido o expirado", false);
+                            Log.d(TAG, "Código no encontrado: " + code);
+                            showStatus("❌ Código inválido o inexistente", false);
                         }
                         resetUI();
                     }
@@ -130,9 +140,10 @@ public class CodePanel extends AppCompatActivity {
     }
 
     private void resetUI() {
+        // Permitir reintentar si falló
         btnLink.setEnabled(true);
         etCode.setEnabled(true);
-        etCode.setText("");
+        etCode.setText(""); // Opcional: limpiar el código erróneo
     }
 
     private void completeLinking(String parentId, String code) {
@@ -165,19 +176,16 @@ public class CodePanel extends AppCompatActivity {
                         db.collection("parents").document(parentId)
                                 .update(parentUpdate)
                                 .addOnSuccessListener(v -> {
-                                    Log.d(TAG, "Padre notificado con éxito");
                                     showStatus("✅ Vinculado correctamente", true);
                                     saveDeviceLinked(code, parentId);
                                     new Handler().postDelayed(this::goToAppLauncher, 1000);
                                 })
                                 .addOnFailureListener(e -> {
-                                    Log.e(TAG, "Error actualizando padre. REVISA LAS REGLAS DE SEGURIDAD.", e);
                                     showStatus("❌ Error de permisos en servidor", false);
                                     resetUI();
                                 });
                     })
                     .addOnFailureListener(e -> {
-                        Log.e(TAG, "Error guardando en children", e);
                         showStatus("❌ Error al guardar vínculo", false);
                         resetUI();
                     });
