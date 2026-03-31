@@ -8,15 +8,25 @@
     android:padding="24dp"
     tools:context=".CodePanel">
 
-    <ImageView
-        android:id="@+id/ivLogo"
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cardLogo"
         android:layout_width="120dp"
         android:layout_height="120dp"
         android:layout_marginTop="64dp"
-        android:src="@mipmap/ic_launcher_foreground"
+        app:cardCornerRadius="24dp"
+        app:cardElevation="0dp"
+        app:strokeWidth="0dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent">
+
+        <ImageView
+            android:id="@+id/ivLogo"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:src="@mipmap/ic_launcher_foreground" />
+    </com.google.android.material.card.MaterialCardView>
 
     <TextView
         android:id="@+id/tvTitle"
@@ -29,7 +39,7 @@
         android:textStyle="bold"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/ivLogo" />
+        app:layout_constraintTop_toBottomOf="@id/cardLogo" />
 
     <TextView
         android:id="@+id/tvSubtitle"
@@ -51,8 +61,8 @@
         android:layout_marginTop="40dp"
         app:cardCornerRadius="16dp"
         app:cardElevation="0dp"
-        app:strokeColor="#E0E0E0"
-        app:strokeWidth="1dp"
+        app:strokeColor="#212121"
+        app:strokeWidth="1.5dp"
         app:layout_constraintTop_toBottomOf="@id/tvSubtitle">
 
         <EditText
@@ -66,7 +76,7 @@
             android:letterSpacing="0.3"
             android:maxLength="6"
             android:padding="16dp"
-            android:textColor="@color/text_primary"
+            android:textColor="@color/purple_200"
             android:textSize="36sp"
             android:textStyle="bold"
             android:autofillHints="one-time-code" />
@@ -74,14 +84,19 @@
 
     <Button
         android:id="@+id/btnLink"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
         android:layout_width="match_parent"
         android:layout_height="60dp"
         android:layout_marginTop="32dp"
+        android:enabled="false"
         android:text="Vincular Ahora"
         android:textAllCaps="false"
+        android:textColor="@color/white"
         android:textSize="18sp"
         android:textStyle="bold"
         app:cornerRadius="12dp"
+        app:strokeColor="@color/purple_200"
+        app:strokeWidth="2dp"
         app:layout_constraintTop_toBottomOf="@id/cardInput" />
 
     <TextView
