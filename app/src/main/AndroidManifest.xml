@@ -3,33 +3,25 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.example.parental_control_child">
 
-    <!-- Declaración de visibilidad para Google Play Services -->
     <queries>
         <package android:name="com.google.android.gms" />
     </queries>
 
-    <!-- Permisos normales -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
-
-    <!-- Permisos peligrosos -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
-
-    <!-- Permisos especiales -->
-    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
-        tools:ignore="ProtectedPermissions"/>
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions"/>
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
-        tools:ignore="QueryAllPackagesPermission"/>
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission"/>
 
     <application
         android:allowBackup="true"
@@ -39,75 +31,57 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Parental_control_child">
 
-        <!-- CodePanel (inicio) -->
-        <activity
-            android:name=".CodePanel"
-            android:exported="true"
-            android:screenOrientation="portrait">
+        <activity android:name=".CodePanel" android:exported="true" android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- PermissionSetup -->
-        <activity
-            android:name=".PermissionSetup"
-            android:exported="false"
-            android:screenOrientation="portrait"/>
+        <activity android:name=".PermissionSetup" android:exported="false" android:screenOrientation="portrait"/>
+        <activity android:name=".HomeActivity" android:exported="false" android:screenOrientation="portrait"/>
 
-        <!-- HomeActivity -->
-        <activity
-            android:name=".HomeActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"/>
-
-        <!-- BlockedActivity (Configurada como ventana de emergencia independiente) -->
         <activity
             android:name=".BlockedActivity"
-            android:exported="false"
             android:excludeFromRecents="true"
             android:noHistory="true"
             android:launchMode="singleInstance"
-            android:taskAffinity="com.example.parental_control_child.blocker"
             android:theme="@style/Theme.BlockedAlert"
-            android:showWhenLocked="true"
-            android:turnScreenOn="true"
             android:screenOrientation="portrait"/>
 
-        <!-- BroadcastReceiver para BOOT_COMPLETED -->
+        <!-- Nueva Actividad de Protección de Desinstalación -->
+        <activity
+            android:name=".UninstallGuardActivity"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@style/Theme.MaterialComponents.Light.NoActionBar"
+            android:windowSoftInputMode="stateVisible"
+            android:screenOrientation="portrait"/>
+
         <receiver
-            android:name=".BootReceiver"
-            android:enabled="true"
-            android:exported="true"
-            android:permission="android.permission.RECEIVE_BOOT_COMPLETED">
+            android:name=".MyAdminReceiver"
+            android:label="Protección Parental"
+            android:permission="android.permission.BIND_DEVICE_ADMIN"
+            android:exported="true">
+            <meta-data android:name="android.app.device_admin" android:resource="@xml/device_admin_rules" />
             <intent-filter>
-                <action android:name="android.BOOT_COMPLETED"/>
-                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
-                <category android:name="android.intent.category.DEFAULT"/>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
             </intent-filter>
         </receiver>
 
-        <!-- Servicio de monitoreo -->
-        <service
-            android:name=".MonitoringService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_TYPE"
-                android:value="Servicio de monitoreo parental para seguridad del menor y recepción de comandos remotos." />
-        </service>
+        <receiver android:name=".BootReceiver" android:enabled="true" android:exported="true">
+            <intent-filter>
+                <action android:name="android.BOOT_COMPLETED"/>
+            </intent-filter>
+        </receiver>
 
-        <!-- Firebase Messaging Service -->
-        <service
-            android:name=".MyFirebaseMessagingService"
-            android:exported="false">
+        <service android:name=".MonitoringService" android:foregroundServiceType="specialUse" />
+        <service android:name=".MyFirebaseMessagingService" android:exported="false">
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
 
-        <!-- Accessibility Service -->
         <service
             android:name=".ParentalAccessibilityService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
@@ -115,21 +89,14 @@
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService"/>
             </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config"/>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/accessibility_service_config"/>
         </service>
 
-        <!-- Notification Listener Service -->
-        <service
-            android:name=".NotificationService"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
-            android:exported="false">
+        <service android:name=".NotificationService" android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" android:exported="false">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService"/>
             </intent-filter>
         </service>
 
     </application>
-
 </manifest>

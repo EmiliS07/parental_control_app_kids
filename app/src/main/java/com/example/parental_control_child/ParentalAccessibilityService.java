@@ -6,8 +6,10 @@ import android.app.usage.UsageStats;
 import android.app.usage.UsageStatsManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityNodeInfo;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
@@ -19,6 +21,7 @@ import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -27,6 +30,7 @@ public class ParentalAccessibilityService extends AccessibilityService {
     private static final String TAG = "ParentalAccessibility";
     private FirebaseFirestore db;
     private ListenerRegistration blockListener;
+    private SharedPreferences prefs;
     
     private final Map<String, AppConfig> appConfigs = new HashMap<>();
     private String lastBlockedPackage = "";
@@ -52,12 +56,17 @@ public class ParentalAccessibilityService extends AccessibilityService {
     protected void onServiceConnected() {
         super.onServiceConnected();
         db = FirebaseFirestore.getInstance();
+        prefs = getSharedPreferences("ParentalControl", MODE_PRIVATE);
         
         AccessibilityServiceInfo info = new AccessibilityServiceInfo();
-        info.eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED;
+        info.eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED | 
+                         AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED |
+                         AccessibilityEvent.TYPE_WINDOWS_CHANGED;
         info.feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC;
-        info.flags = AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS;
-        info.notificationTimeout = 50; // Más rápido
+        info.flags = AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS | 
+                    AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS |
+                    AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS;
+        info.notificationTimeout = 50;
         setServiceInfo(info);
 
         startListeningToFirestore();
@@ -87,22 +96,13 @@ public class ParentalAccessibilityService extends AccessibilityService {
                         Map<String, Object> data = (Map<String, Object>) value;
                         String pkg = (String) data.get("packageName");
                         if (pkg == null) continue;
-
-                        boolean blocked = Boolean.TRUE.equals(data.get("blocked"));
-                        long limit = 0;
-                        Object limitObj = data.get("timeLimitMinutes");
-                        if (limitObj instanceof Number) limit = ((Number) limitObj).longValue();
-
-                        String start = (String) data.get("startTime");
-                        String end = (String) data.get("endTime");
-
-                        newConfigs.put(pkg, new AppConfig(pkg, blocked, limit, start, end));
+                        newConfigs.put(pkg, new AppConfig(pkg, Boolean.TRUE.equals(data.get("blocked")),
+                                data.get("timeLimitMinutes") instanceof Number ? ((Number) data.get("timeLimitMinutes")).longValue() : 0,
+                                (String) data.get("startTime"), (String) data.get("endTime")));
                     }
                 }
             }
-        } catch (Exception e) {
-            Log.e(TAG, "Error parsing appsMap", e);
-        }
+        } catch (Exception e) { Log.e(TAG, "Error parsing appsMap", e); }
 
         synchronized (appConfigs) {
             appConfigs.clear();
@@ -112,46 +112,72 @@ public class ParentalAccessibilityService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
         if (event.getPackageName() == null) return;
-
         String pkgName = event.getPackageName().toString();
-        
-        // No bloquear nuestra propia app, ni el sistema, ni el launcher
-        if (pkgName.equals(getPackageName()) || pkgName.equals("android") || 
-            pkgName.contains("launcher") || pkgName.contains("settings")) return;
 
+        // --- ESCUDO ANTIDESINSTALACIÓN (Solo si ya está vinculado) ---
+        if (isLinked() && (pkgName.equals("com.android.settings") || pkgName.contains("packageinstaller"))) {
+            AccessibilityNodeInfo rootNode = getRootInActiveWindow();
+            if (rootNode != null) {
+                if (containsText(rootNode, "Security Kambery") || containsText(rootNode, getPackageName())) {
+                    Log.w(TAG, "Intento de gestión de app detectado en dispositivo vinculado. Bloqueando.");
+                    launchUninstallGuard();
+                    return;
+                }
+            }
+        }
+
+        if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
+
+        // --- BLOQUEO DE OTRAS APPS ---
+        if (pkgName.equals(getPackageName()) || pkgName.equals("android") || pkgName.contains("launcher")) return;
         checkAndEnforce(pkgName);
+    }
+
+    private boolean isLinked() {
+        return prefs != null && prefs.getBoolean("isLinked", false);
+    }
+
+    private boolean containsText(AccessibilityNodeInfo node, String text) {
+        if (node == null) return false;
+        if (node.getText() != null && node.getText().toString().toLowerCase().contains(text.toLowerCase())) return true;
+        for (int i = 0; i < node.getChildCount(); i++) {
+            if (containsText(node.getChild(i), text)) return true;
+        }
+        return false;
+    }
+
+    private void launchUninstallGuard() {
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastBlockTime < 1500) return;
+        lastBlockTime = currentTime;
+
+        performGlobalAction(GLOBAL_ACTION_HOME);
+        Intent intent = new Intent(this, UninstallGuardActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NO_ANIMATION);
+        startActivity(intent);
     }
 
     private void checkAndEnforce(String pkgName) {
         AppConfig config;
-        synchronized (appConfigs) {
-            config = appConfigs.get(pkgName);
-        }
-
+        synchronized (appConfigs) { config = appConfigs.get(pkgName); }
         if (config == null) return;
 
         String reason = null;
-
         if (config.blocked) {
             reason = "Esta aplicación ha sido bloqueada por tus padres.";
         } else if (config.timeLimitMinutes > 0) {
             long currentUsage = getTodayUsageMinutes(pkgName);
             if (currentUsage >= config.timeLimitMinutes) {
-                reason = "Has alcanzado el límite de tiempo diario (" + config.timeLimitMinutes + " min).";
+                reason = "Has alcanzado el límite de tiempo diario.";
             }
         }
-
         if (reason == null && config.startTime != null && config.endTime != null && !config.startTime.isEmpty()) {
             if (isTimeInRestrictedRange(config.startTime, config.endTime)) {
-                reason = "No puedes usar esta aplicación en este horario (" + config.startTime + " - " + config.endTime + ").";
+                reason = "No puedes usar esta app en este horario.";
             }
         }
-
-        if (reason != null) {
-            blockApp(pkgName, reason);
-        }
+        if (reason != null) blockApp(pkgName, reason);
     }
 
     private long getTodayUsageMinutes(String packageName) {
@@ -163,9 +189,7 @@ public class ParentalAccessibilityService extends AccessibilityService {
         calendar.set(Calendar.MINUTE, 0);
         calendar.set(Calendar.SECOND, 0);
         Map<String, UsageStats> stats = usm.queryAndAggregateUsageStats(calendar.getTimeInMillis(), endTime);
-        if (stats.containsKey(packageName)) {
-            return stats.get(packageName).getTotalTimeInForeground() / (1000 * 60);
-        }
+        if (stats.containsKey(packageName)) return stats.get(packageName).getTotalTimeInForeground() / (1000 * 60);
         return 0;
     }
 
@@ -184,20 +208,13 @@ public class ParentalAccessibilityService extends AccessibilityService {
 
     private void blockApp(String pkgName, String reason) {
         long currentTime = System.currentTimeMillis();
-        // Evitar lanzamientos múltiples en menos de 2 segundos
         if (pkgName.equals(lastBlockedPackage) && (currentTime - lastBlockTime < 2000)) return;
-        
         lastBlockedPackage = pkgName;
         lastBlockTime = currentTime;
 
-        // 1. Mandar al Home inmediatamente
         performGlobalAction(GLOBAL_ACTION_HOME);
-
-        // 2. Mostrar alerta de emergencia (en una nueva tarea independiente)
         Intent intent = new Intent(this, BlockedActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK 
-                      | Intent.FLAG_ACTIVITY_MULTIPLE_TASK 
-                      | Intent.FLAG_ACTIVITY_NO_ANIMATION);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         intent.putExtra("reason", reason);
         intent.putExtra("packageName", pkgName);
         startActivity(intent);
