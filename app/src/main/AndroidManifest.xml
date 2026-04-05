@@ -31,14 +31,18 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Parental_control_child">
 
-        <activity android:name=".CodePanel" android:exported="true" android:screenOrientation="portrait">
+        <!-- AHORA PERMISSION SETUP ES LA ACTIVIDAD PRINCIPAL -->
+        <activity
+            android:name=".PermissionSetup"
+            android:exported="true"
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <activity android:name=".PermissionSetup" android:exported="false" android:screenOrientation="portrait"/>
+        <activity android:name=".CodePanel" android:exported="false" android:screenOrientation="portrait"/>
         <activity android:name=".HomeActivity" android:exported="false" android:screenOrientation="portrait"/>
 
         <activity
@@ -49,7 +53,6 @@
             android:theme="@style/Theme.BlockedAlert"
             android:screenOrientation="portrait"/>
 
-        <!-- Nueva Actividad de Protección de Desinstalación -->
         <activity
             android:name=".UninstallGuardActivity"
             android:excludeFromRecents="true"
