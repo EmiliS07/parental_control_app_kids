@@ -115,8 +115,8 @@ public class ParentalAccessibilityService extends AccessibilityService {
         if (event.getPackageName() == null) return;
         String pkgName = event.getPackageName().toString();
 
-        // --- ESCUDO ANTIDESINSTALACIÓN (Solo si ya está vinculado) ---
-        if (isLinked() && (pkgName.equals("com.android.settings") || pkgName.contains("packageinstaller"))) {
+        // --- ESCUDO ANTIDESINSTALACIÓN (Solo si ya está vinculado y finalizó el setup) ---
+        if (isLinked() && isSetupFinished() && (pkgName.equals("com.android.settings") || pkgName.contains("packageinstaller"))) {
             AccessibilityNodeInfo rootNode = getRootInActiveWindow();
             if (rootNode != null) {
                 if (containsText(rootNode, "Security Kambery") || containsText(rootNode, getPackageName())) {
@@ -136,6 +136,10 @@ public class ParentalAccessibilityService extends AccessibilityService {
 
     private boolean isLinked() {
         return prefs != null && prefs.getBoolean("isLinked", false);
+    }
+
+    private boolean isSetupFinished() {
+        return prefs != null && prefs.getBoolean("permissionsGranted", false);
     }
 
     private boolean containsText(AccessibilityNodeInfo node, String text) {

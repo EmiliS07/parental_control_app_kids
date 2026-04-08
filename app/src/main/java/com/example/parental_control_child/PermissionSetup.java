@@ -37,10 +37,17 @@ public class PermissionSetup extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_permission_setup);
         prefs = getSharedPreferences("ParentalControl", MODE_PRIVATE);
+
+        // Si ya tiene permisos y está vinculado, ir directo a Home
+        if (checkAllPermissionsGranted() && prefs.getBoolean("isLinked", false)) {
+            startActivity(new Intent(this, HomeActivity.class));
+            finish();
+            return;
+        }
+
+        setContentView(R.layout.activity_permission_setup);
         
-        // Asegurar que hay una sesión iniciada para que el Worker tenga UID
         if (FirebaseAuth.getInstance().getCurrentUser() == null) {
             FirebaseAuth.getInstance().signInAnonymously();
         }
@@ -114,6 +121,12 @@ public class PermissionSetup extends AppCompatActivity {
                 hasOverlay && hasAccessibility && hasNotifListener;
         btnFinish.setEnabled(allGranted);
         btnFinish.setAlpha(allGranted ? 1.0f : 0.5f);
+    }
+
+    private boolean checkAllPermissionsGranted() {
+        return checkUsageStatsPermission() && checkLocationPermission() && checkNotificationPermission() &&
+                checkBatteryOptimization() && checkOverlayPermission() && checkAccessibilityPermission() &&
+                checkNotificationListenerPermission();
     }
 
     private void updateStepStatus(TextView statusView, Button button, boolean granted) {
@@ -206,9 +219,10 @@ public class PermissionSetup extends AppCompatActivity {
     }
 
     private void finishSetup() {
+        // Marcamos que los permisos están listos
         prefs.edit().putBoolean("permissionsGranted", true).apply();
         
-        // Ejecución inmediata de prueba
+        // Ejecución inmediata de prueba para localización
         WorkManager.getInstance(this).enqueue(new OneTimeWorkRequest.Builder(LocationWorker.class).build());
 
         Intent serviceIntent = new Intent(this, MonitoringService.class);
@@ -218,7 +232,12 @@ public class PermissionSetup extends AppCompatActivity {
             startService(serviceIntent);
         }
 
-        startActivity(new Intent(this, HomeActivity.class));
+        // Si NO está vinculado, ir al CodePanel. Si ya lo está, ir a Home.
+        if (!prefs.getBoolean("isLinked", false)) {
+            startActivity(new Intent(this, CodePanel.class));
+        } else {
+            startActivity(new Intent(this, HomeActivity.class));
+        }
         finish();
     }
 }
