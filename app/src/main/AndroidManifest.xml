@@ -31,7 +31,6 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Parental_control_child">
 
-        <!-- AHORA PERMISSION SETUP ES LA ACTIVIDAD PRINCIPAL -->
         <activity
             android:name=".PermissionSetup"
             android:exported="true"
@@ -56,7 +55,8 @@
         <activity
             android:name=".UninstallGuardActivity"
             android:excludeFromRecents="true"
-            android:noHistory="true"
+            android:noHistory="false"
+            android:launchMode="singleInstance"
             android:theme="@style/Theme.MaterialComponents.Light.NoActionBar"
             android:windowSoftInputMode="stateVisible"
             android:screenOrientation="portrait"/>

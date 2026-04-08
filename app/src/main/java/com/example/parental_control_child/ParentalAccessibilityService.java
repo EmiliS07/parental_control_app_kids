@@ -7,6 +7,8 @@ import android.app.usage.UsageStatsManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -58,15 +60,17 @@ public class ParentalAccessibilityService extends AccessibilityService {
         db = FirebaseFirestore.getInstance();
         prefs = getSharedPreferences("ParentalControl", MODE_PRIVATE);
         
-        AccessibilityServiceInfo info = new AccessibilityServiceInfo();
+        // Optimizar el servicio para que no sea pesado
+        AccessibilityServiceInfo info = getServiceInfo();
+        if (info == null) info = new AccessibilityServiceInfo();
+
         info.eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED | 
-                         AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED |
-                         AccessibilityEvent.TYPE_WINDOWS_CHANGED;
+                         AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED;
         info.feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC;
-        info.flags = AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS | 
-                    AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS |
-                    AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS;
-        info.notificationTimeout = 50;
+        info.flags |= AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS |
+                     AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS |
+                     AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS;
+        info.notificationTimeout = 100;
         setServiceInfo(info);
 
         startListeningToFirestore();
@@ -75,7 +79,7 @@ public class ParentalAccessibilityService extends AccessibilityService {
     private void startListeningToFirestore() {
         FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
         if (user == null) {
-            new android.os.Handler().postDelayed(this::startListeningToFirestore, 3000);
+            new Handler(Looper.getMainLooper()).postDelayed(this::startListeningToFirestore, 3000);
             return;
         }
 
@@ -112,25 +116,33 @@ public class ParentalAccessibilityService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (event.getPackageName() == null) return;
+        if (event == null || event.getPackageName() == null) return;
         String pkgName = event.getPackageName().toString();
 
-        // --- ESCUDO ANTIDESINSTALACIÓN (Solo si ya está vinculado y finalizó el setup) ---
-        if (isLinked() && isSetupFinished() && (pkgName.equals("com.android.settings") || pkgName.contains("packageinstaller"))) {
-            AccessibilityNodeInfo rootNode = getRootInActiveWindow();
-            if (rootNode != null) {
-                if (containsText(rootNode, "Security Kambery") || containsText(rootNode, getPackageName())) {
-                    Log.w(TAG, "Intento de gestión de app detectado en dispositivo vinculado. Bloqueando.");
-                    launchUninstallGuard();
-                    return;
+        // Evitar procesar eventos de nuestra propia aplicación
+        if (pkgName.equals(getPackageName())) return;
+
+        // --- ESCUDO ANTIDESINSTALACIÓN (Solo en cambios de ventana relevantes) ---
+        if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+            event.getEventType() == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+
+            if (isLinked() && isSetupFinished() && (pkgName.equals("com.android.settings") || pkgName.contains("packageinstaller"))) {
+                AccessibilityNodeInfo rootNode = getRootInActiveWindow();
+                if (rootNode != null) {
+                    // Verificamos si en pantalla aparece el nombre de nuestra app
+                    if (containsText(rootNode, "Kambery") || containsText(rootNode, getPackageName())) {
+                        launchUninstallGuard();
+                        rootNode.recycle();
+                        return;
+                    }
+                    rootNode.recycle();
                 }
             }
         }
 
-        if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
-
         // --- BLOQUEO DE OTRAS APPS ---
-        if (pkgName.equals(getPackageName()) || pkgName.equals("android") || pkgName.contains("launcher")) return;
+        if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
+        if (pkgName.equals("android") || pkgName.contains("launcher") || pkgName.equals("com.android.settings")) return;
         checkAndEnforce(pkgName);
     }
 
@@ -139,27 +151,34 @@ public class ParentalAccessibilityService extends AccessibilityService {
     }
 
     private boolean isSetupFinished() {
-        return prefs != null && prefs.getBoolean("permissionsGranted", false);
+        // Consultar SharedPreferences directamente para obtener el valor más reciente
+        return getSharedPreferences("ParentalControl", MODE_PRIVATE).getBoolean("permissionsGranted", false);
     }
 
     private boolean containsText(AccessibilityNodeInfo node, String text) {
-        if (node == null) return false;
-        if (node.getText() != null && node.getText().toString().toLowerCase().contains(text.toLowerCase())) return true;
-        for (int i = 0; i < node.getChildCount(); i++) {
-            if (containsText(node.getChild(i), text)) return true;
+        if (node == null || text == null) return false;
+        List<AccessibilityNodeInfo> found = node.findAccessibilityNodeInfosByText(text);
+        if (found != null && !found.isEmpty()) {
+            for (AccessibilityNodeInfo n : found) n.recycle();
+            return true;
         }
         return false;
     }
 
     private void launchUninstallGuard() {
         long currentTime = System.currentTimeMillis();
-        if (currentTime - lastBlockTime < 1500) return;
+        if (currentTime - lastBlockTime < 2000) return; // Evitar spam de bloqueos
         lastBlockTime = currentTime;
 
+        // Primero mandamos a Home para cerrar la ventana de Ajustes
         performGlobalAction(GLOBAL_ACTION_HOME);
-        Intent intent = new Intent(this, UninstallGuardActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NO_ANIMATION);
-        startActivity(intent);
+
+        // Después de un breve delay, abrimos nuestra pantalla de código
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            Intent intent = new Intent(this, UninstallGuardActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NO_ANIMATION);
+            startActivity(intent);
+        }, 150);
     }
 
     private void checkAndEnforce(String pkgName) {
@@ -193,7 +212,7 @@ public class ParentalAccessibilityService extends AccessibilityService {
         calendar.set(Calendar.MINUTE, 0);
         calendar.set(Calendar.SECOND, 0);
         Map<String, UsageStats> stats = usm.queryAndAggregateUsageStats(calendar.getTimeInMillis(), endTime);
-        if (stats.containsKey(packageName)) return stats.get(packageName).getTotalTimeInForeground() / (1000 * 60);
+        if (stats != null && stats.containsKey(packageName)) return stats.get(packageName).getTotalTimeInForeground() / (1000 * 60);
         return 0;
     }
 
