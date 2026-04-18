@@ -29,9 +29,11 @@ public class BlockedActivity extends AppCompatActivity {
             finish();
         });
     }
+/**
+ *Evitamos el inputs de volver atrás para impedir que salgan del bloqueo
+ */
 
     @Override
     public void onBackPressed() {
-        // No permitir volver atrás para salir del bloqueo
     }
 }
