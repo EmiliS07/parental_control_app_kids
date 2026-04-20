@@ -60,17 +60,15 @@ public class ParentalAccessibilityService extends AccessibilityService {
         db = FirebaseFirestore.getInstance();
         prefs = getSharedPreferences("ParentalControl", MODE_PRIVATE);
         
-        // Optimizar el servicio para que no sea pesado
-        AccessibilityServiceInfo info = getServiceInfo();
-        if (info == null) info = new AccessibilityServiceInfo();
-
+        AccessibilityServiceInfo info = new AccessibilityServiceInfo();
         info.eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED | 
-                         AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED;
+                         AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED |
+                         AccessibilityEvent.TYPE_WINDOWS_CHANGED;
         info.feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC;
-        info.flags |= AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS |
+        info.flags = AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS |
                      AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS |
                      AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS;
-        info.notificationTimeout = 100;
+        info.notificationTimeout = 0; // Respuesta instantánea
         setServiceInfo(info);
 
         startListeningToFirestore();
@@ -119,18 +117,17 @@ public class ParentalAccessibilityService extends AccessibilityService {
         if (event == null || event.getPackageName() == null) return;
         String pkgName = event.getPackageName().toString();
 
-        // Evitar procesar eventos de nuestra propia aplicación
         if (pkgName.equals(getPackageName())) return;
 
-        // --- ESCUDO ANTIDESINSTALACIÓN (Solo en cambios de ventana relevantes) ---
-        if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
-            event.getEventType() == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
-
-            if (isLinked() && isSetupFinished() && (pkgName.equals("com.android.settings") || pkgName.contains("packageinstaller"))) {
+        // --- ESCUDO ANTIDESINSTALACIÓN (MEJORADO) ---
+        if (isLinked()) {
+            // Detectar intentos en Ajustes o el instalador del sistema
+            if (pkgName.equals("com.android.settings") || pkgName.contains("packageinstaller")) {
                 AccessibilityNodeInfo rootNode = getRootInActiveWindow();
                 if (rootNode != null) {
-                    // Verificamos si en pantalla aparece el nombre de nuestra app
-                    if (containsText(rootNode, "Kambery") || containsText(rootNode, getPackageName())) {
+                    // Si aparece "Security Kambery" (nombre de la app) o "Desinstalar" en la pantalla activa de Ajustes
+                    if (containsText(rootNode, "Security Kambery") || containsText(rootNode, "Desinstalar") || containsText(rootNode, "Uninstall")) {
+                        Log.w(TAG, "Detección crítica de desinstalación. Bloqueando de inmediato.");
                         launchUninstallGuard();
                         rootNode.recycle();
                         return;
@@ -141,18 +138,14 @@ public class ParentalAccessibilityService extends AccessibilityService {
         }
 
         // --- BLOQUEO DE OTRAS APPS ---
-        if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
-        if (pkgName.equals("android") || pkgName.contains("launcher") || pkgName.equals("com.android.settings")) return;
-        checkAndEnforce(pkgName);
+        if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            if (pkgName.equals("android") || pkgName.contains("launcher") || pkgName.equals("com.android.settings")) return;
+            checkAndEnforce(pkgName);
+        }
     }
 
     private boolean isLinked() {
         return prefs != null && prefs.getBoolean("isLinked", false);
-    }
-
-    private boolean isSetupFinished() {
-        // Consultar SharedPreferences directamente para obtener el valor más reciente
-        return getSharedPreferences("ParentalControl", MODE_PRIVATE).getBoolean("permissionsGranted", false);
     }
 
     private boolean containsText(AccessibilityNodeInfo node, String text) {
@@ -167,18 +160,20 @@ public class ParentalAccessibilityService extends AccessibilityService {
 
     private void launchUninstallGuard() {
         long currentTime = System.currentTimeMillis();
-        if (currentTime - lastBlockTime < 2000) return; // Evitar spam de bloqueos
+        // Debounce muy corto (300ms) para no perder intentos rápidos del niño
+        if (currentTime - lastBlockTime < 300) return;
         lastBlockTime = currentTime;
 
-        // Primero mandamos a Home para cerrar la ventana de Ajustes
+        // 1. Forzar salida al Home (Interrupción física)
         performGlobalAction(GLOBAL_ACTION_HOME);
 
-        // Después de un breve delay, abrimos nuestra pantalla de código
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            Intent intent = new Intent(this, UninstallGuardActivity.class);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NO_ANIMATION);
-            startActivity(intent);
-        }, 150);
+        // 2. Lanzar la pantalla de código con máxima prioridad
+        Intent intent = new Intent(this, UninstallGuardActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | 
+                      Intent.FLAG_ACTIVITY_CLEAR_TOP | 
+                      Intent.FLAG_ACTIVITY_REORDER_TO_FRONT |
+                      Intent.FLAG_ACTIVITY_NO_ANIMATION);
+        startActivity(intent);
     }
 
     private void checkAndEnforce(String pkgName) {
@@ -195,12 +190,16 @@ public class ParentalAccessibilityService extends AccessibilityService {
                 reason = "Has alcanzado el límite de tiempo diario.";
             }
         }
+        
         if (reason == null && config.startTime != null && config.endTime != null && !config.startTime.isEmpty()) {
             if (isTimeInRestrictedRange(config.startTime, config.endTime)) {
                 reason = "No puedes usar esta app en este horario.";
             }
         }
-        if (reason != null) blockApp(pkgName, reason);
+        
+        if (reason != null) {
+            blockApp(pkgName, reason);
+        }
     }
 
     private long getTodayUsageMinutes(String packageName) {
@@ -231,13 +230,17 @@ public class ParentalAccessibilityService extends AccessibilityService {
 
     private void blockApp(String pkgName, String reason) {
         long currentTime = System.currentTimeMillis();
-        if (pkgName.equals(lastBlockedPackage) && (currentTime - lastBlockTime < 2000)) return;
+        if (pkgName.equals(lastBlockedPackage) && (currentTime - lastBlockTime < 1000)) return;
         lastBlockedPackage = pkgName;
         lastBlockTime = currentTime;
 
         performGlobalAction(GLOBAL_ACTION_HOME);
+        
         Intent intent = new Intent(this, BlockedActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | 
+                      Intent.FLAG_ACTIVITY_CLEAR_TOP | 
+                      Intent.FLAG_ACTIVITY_REORDER_TO_FRONT |
+                      Intent.FLAG_ACTIVITY_NO_ANIMATION);
         intent.putExtra("reason", reason);
         intent.putExtra("packageName", pkgName);
         startActivity(intent);

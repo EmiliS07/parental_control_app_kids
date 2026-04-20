@@ -101,39 +101,41 @@ public class CodePanel extends AppCompatActivity {
         // Deshabilitar UI durante la verificación
         btnLink.setEnabled(false);
         etCode.setEnabled(false);
-        showStatus("Verificando código en la base de datos...", true);
+        showStatus("Verificando código...", true);
+
+        Log.d(TAG, "Buscando código: " + code);
 
         // BUSQUEDA EN LA BASE DE DATOS (Firestore)
         db.collection("parents")
                 .whereEqualTo("linkCode", code)
                 .get()
                 .addOnCompleteListener(task -> {
-                    if (task.isSuccessful() && task.getResult() != null && !task.getResult().isEmpty()) {
-                        // El código existe en la base de datos
-                        String parentId = task.getResult().getDocuments().get(0).getId();
-                        Log.d(TAG, "Padre encontrado: " + parentId);
-                        
-                        FirebaseUser user = mAuth.getCurrentUser();
-                        if (user != null) {
-                            completeLinking(parentId, code);
-                        } else {
-                             mAuth.signInAnonymously().addOnCompleteListener(authTask -> {
-                                if (authTask.isSuccessful()) completeLinking(parentId, code);
-                                else {
-                                    showStatus("❌ Error de autenticación", false);
-                                    resetUI();
-                                }
-                            });
-                        }
-                    } else {
-                        // El código NO existe o hubo error
-                        if (!task.isSuccessful()) {
-                            Log.e(TAG, "Error Firestore: ", task.getException());
-                            showStatus("❌ Error de conexión", false);
+                    if (task.isSuccessful()) {
+                        if (task.getResult() != null && !task.getResult().isEmpty()) {
+                            // El código existe en la base de datos
+                            String parentId = task.getResult().getDocuments().get(0).getId();
+                            Log.d(TAG, "Padre encontrado: " + parentId);
+                            
+                            FirebaseUser user = mAuth.getCurrentUser();
+                            if (user != null) {
+                                completeLinking(parentId, code);
+                            } else {
+                                 mAuth.signInAnonymously().addOnCompleteListener(authTask -> {
+                                    if (authTask.isSuccessful()) completeLinking(parentId, code);
+                                    else {
+                                        showStatus("❌ Error de autenticación", false);
+                                        resetUI();
+                                    }
+                                });
+                            }
                         } else {
                             Log.d(TAG, "Código no encontrado: " + code);
-                            showStatus("❌ Código inválido o inexistente", false);
+                            showStatus("❌ Código inválido", false);
+                            resetUI();
                         }
+                    } else {
+                        Log.e(TAG, "Error Firestore: ", task.getException());
+                        showStatus("❌ Error de red", false);
                         resetUI();
                     }
                 });
@@ -143,11 +145,18 @@ public class CodePanel extends AppCompatActivity {
         // Permitir reintentar si falló
         btnLink.setEnabled(true);
         etCode.setEnabled(true);
-        etCode.setText(""); // Opcional: limpiar el código erróneo
     }
 
     private void completeLinking(String parentId, String code) {
-        String childId = mAuth.getCurrentUser().getUid();
+        FirebaseUser user = mAuth.getCurrentUser();
+        if (user == null) {
+            showStatus("❌ Error: Sesión no iniciada", false);
+            resetUI();
+            return;
+        }
+
+        String childId = user.getUid();
+        showStatus("Sincronizando...", true);
 
         FirebaseMessaging.getInstance().getToken().addOnCompleteListener(tokenTask -> {
             String fcmToken = tokenTask.isSuccessful() ? tokenTask.getResult() : "";
@@ -176,17 +185,19 @@ public class CodePanel extends AppCompatActivity {
                         db.collection("parents").document(parentId)
                                 .update(parentUpdate)
                                 .addOnSuccessListener(v -> {
-                                    showStatus("✅ Vinculado correctamente", true);
+                                    showStatus("✅ ¡Vinculado!", true);
                                     saveDeviceLinked(code, parentId);
                                     new Handler().postDelayed(this::goToAppLauncher, 1000);
                                 })
                                 .addOnFailureListener(e -> {
-                                    showStatus("❌ Error de permisos en servidor", false);
+                                    Log.e(TAG, "Error actualizando padre: ", e);
+                                    showStatus("❌ Error de permisos", false);
                                     resetUI();
                                 });
                     })
                     .addOnFailureListener(e -> {
-                        showStatus("❌ Error al guardar vínculo", false);
+                        Log.e(TAG, "Error creando hijo: ", e);
+                        showStatus("❌ Error al guardar", false);
                         resetUI();
                     });
         });
@@ -198,7 +209,7 @@ public class CodePanel extends AppCompatActivity {
                 String token = task.getResult();
                 Map<String, Object> data = new HashMap<>();
                 data.put("fcmToken", token);
-                db.collection("children").document(mAuth.getCurrentUser().getUid()).update(data);
+                db.collection("children").document(mAuth.getCurrentUser().getUid()).set(data, com.google.firebase.firestore.SetOptions.merge());
             }
         });
     }

@@ -20,7 +20,7 @@
         android:layout_height="wrap_content"
         android:layout_marginStart="24dp"
         android:layout_marginTop="48dp"
-        android:text="Configuración de\nPermisos"
+        android:text="Configuración de\nSeguridad"
         android:textColor="@color/white"
         android:textSize="28sp"
         android:textStyle="bold"
@@ -31,7 +31,6 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="24dp"
-        android:background="@drawable/permission_card_top_rounded"
         app:layout_constraintBottom_toTopOf="@id/btnFinish"
         app:layout_constraintTop_toBottomOf="@id/tvTitle">
 
@@ -41,28 +40,144 @@
             android:orientation="vertical"
             android:padding="24dp">
 
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp"
-                android:text="Para proteger este dispositivo, necesitamos los siguientes permisos:"
-                android:textColor="@color/text_secondary"
-                android:textSize="15sp" />
-
-            <!-- Acceso de Uso -->
+            <!-- Localización -->
             <com.google.android.material.card.MaterialCardView
-                android:id="@+id/stepUsageStats"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="12dp"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="2dp"
-                app:strokeWidth="0dp">
+                app:cardBackgroundColor="@color/surface"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp">
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"
-                    android:orientation="horizontal"
+                    android:padding="16dp">
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Localización"
+                            android:textColor="@color/text_primary"
+                            android:textStyle="bold" />
+                        <TextView
+                            android:id="@+id/tvLocationStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Rastreo del dispositivo"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+                    <Button
+                        android:id="@+id/btnLocation"
+                        style="@style/Widget.MaterialComponents.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Activar"
+                        android:textColor="@color/primary" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Superposición (Overlay) -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                app:cardBackgroundColor="@color/surface"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:padding="16dp">
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Aparecer Encima"
+                            android:textColor="@color/text_primary"
+                            android:textStyle="bold" />
+                        <TextView
+                            android:id="@+id/tvOverlayStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Permite mostrar bloqueos"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+                    <Button
+                        android:id="@+id/btnOverlay"
+                        style="@style/Widget.MaterialComponents.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Activar"
+                        android:textColor="@color/primary" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Accesibilidad -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                app:cardBackgroundColor="@color/surface"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:padding="16dp">
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Accesibilidad"
+                            android:textColor="@color/text_primary"
+                            android:textStyle="bold" />
+                        <TextView
+                            android:id="@+id/tvAccessibilityStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Vigilancia del dispositivo"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+                    <Button
+                        android:id="@+id/btnAccessibility"
+                        style="@style/Widget.MaterialComponents.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Activar"
+                        android:textColor="@color/primary" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Acceso de Uso -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                app:cardBackgroundColor="@color/surface"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
                     android:padding="16dp">
                     <LinearLayout
                         android:layout_width="0dp"
@@ -89,66 +204,22 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Activar"
-                        android:textAllCaps="false" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Ubicación -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/stepLocation"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="2dp">
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:padding="16dp">
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Ubicación"
-                            android:textColor="@color/text_primary"
-                            android:textStyle="bold" />
-                        <TextView
-                            android:id="@+id/tvLocationStatus"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Rastreo en tiempo real"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="12sp" />
-                    </LinearLayout>
-                    <Button
-                        android:id="@+id/btnLocation"
-                        style="@style/Widget.MaterialComponents.Button.TextButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Activar"
-                        android:textAllCaps="false" />
+                        android:textColor="@color/primary" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
             <!-- Notificaciones -->
             <com.google.android.material.card.MaterialCardView
-                android:id="@+id/stepNotifications"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="12dp"
-                app:cardCornerRadius="16dp"
+                app:cardBackgroundColor="@color/surface"
+                app:cardCornerRadius="12dp"
                 app:cardElevation="2dp">
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"
-                    android:orientation="horizontal"
                     android:padding="16dp">
                     <LinearLayout
                         android:layout_width="0dp"
@@ -165,7 +236,7 @@
                             android:id="@+id/tvNotifStatus"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Recibir alertas de seguridad"
+                            android:text="Alertas y avisos"
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
                     </LinearLayout>
@@ -175,23 +246,22 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Activar"
-                        android:textAllCaps="false" />
+                        android:textColor="@color/primary" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
             <!-- Batería -->
             <com.google.android.material.card.MaterialCardView
-                android:id="@+id/stepBattery"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="12dp"
-                app:cardCornerRadius="16dp"
+                app:cardBackgroundColor="@color/surface"
+                app:cardCornerRadius="12dp"
                 app:cardElevation="2dp">
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"
-                    android:orientation="horizontal"
                     android:padding="16dp">
                     <LinearLayout
                         android:layout_width="0dp"
@@ -201,14 +271,14 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Optimización de Batería"
+                            android:text="Batería"
                             android:textColor="@color/text_primary"
                             android:textStyle="bold" />
                         <TextView
                             android:id="@+id/tvBatteryStatus"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Evitar cierre de la app"
+                            android:text="Optimización de energía"
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
                     </LinearLayout>
@@ -218,23 +288,22 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Activar"
-                        android:textAllCaps="false" />
+                        android:textColor="@color/primary" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Superposición -->
+            <!-- Lector de Notificaciones -->
             <com.google.android.material.card.MaterialCardView
-                android:id="@+id/stepOverlay"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="12dp"
-                app:cardCornerRadius="16dp"
+                app:cardBackgroundColor="@color/surface"
+                app:cardCornerRadius="12dp"
                 app:cardElevation="2dp">
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"
-                    android:orientation="horizontal"
                     android:padding="16dp">
                     <LinearLayout
                         android:layout_width="0dp"
@@ -244,100 +313,14 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Sobre otras apps"
-                            android:textColor="@color/text_primary"
-                            android:textStyle="bold" />
-                        <TextView
-                            android:id="@+id/tvOverlayStatus"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Bloqueo de pantalla parental"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="12sp" />
-                    </LinearLayout>
-                    <Button
-                        android:id="@+id/btnOverlay"
-                        style="@style/Widget.MaterialComponents.Button.TextButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Activar"
-                        android:textAllCaps="false" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Accesibilidad -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/stepAccessibility"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="2dp">
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:padding="16dp">
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Accesibilidad"
-                            android:textColor="@color/text_primary"
-                            android:textStyle="bold" />
-                        <TextView
-                            android:id="@+id/tvAccessibilityStatus"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Bloqueo de contenido web"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="12sp" />
-                    </LinearLayout>
-                    <Button
-                        android:id="@+id/btnAccessibility"
-                        style="@style/Widget.MaterialComponents.Button.TextButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Activar"
-                        android:textAllCaps="false" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Acceso a Notificaciones -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/stepNotificationListener"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="2dp">
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:padding="16dp">
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Monitor de Notif."
+                            android:text="Lector de Notificaciones"
                             android:textColor="@color/text_primary"
                             android:textStyle="bold" />
                         <TextView
                             android:id="@+id/tvNotifListenerStatus"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Lectura de notificaciones"
+                            android:text="Acceso a mensajes"
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
                     </LinearLayout>
@@ -347,7 +330,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Activar"
-                        android:textAllCaps="false" />
+                        android:textColor="@color/primary" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -359,12 +342,10 @@
         android:layout_width="match_parent"
         android:layout_height="60dp"
         android:layout_margin="24dp"
-        android:text="Comenzar Protección"
-        android:textAllCaps="false"
-        android:textSize="16sp"
-        android:textStyle="bold"
+        android:backgroundTint="@color/primary"
+        android:text="Finalizar y Vincular"
+        android:textColor="@color/white"
         android:enabled="false"
-        app:cornerRadius="12dp"
         app:layout_constraintBottom_toBottomOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
