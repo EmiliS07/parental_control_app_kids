@@ -68,7 +68,7 @@ public class ParentalAccessibilityService extends AccessibilityService {
         info.flags = AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS |
                      AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS |
                      AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS;
-        info.notificationTimeout = 0; // Respuesta instantánea
+        info.notificationTimeout = 50; 
         setServiceInfo(info);
 
         startListeningToFirestore();
@@ -119,15 +119,23 @@ public class ParentalAccessibilityService extends AccessibilityService {
 
         if (pkgName.equals(getPackageName())) return;
 
-        // --- ESCUDO ANTIDESINSTALACIÓN (MEJORADO) ---
-        if (isLinked()) {
-            // Detectar intentos en Ajustes o el instalador del sistema
-            if (pkgName.equals("com.android.settings") || pkgName.contains("packageinstaller")) {
+        // --- ESCUDO ANTIDESINSTALACIÓN (REFORZADO) ---
+        if (isLinked() && !isUninstallAllowed()) {
+            boolean isSettings = pkgName.contains("settings");
+            boolean isInstaller = pkgName.contains("packageinstaller");
+
+            if (isSettings || isInstaller) {
                 AccessibilityNodeInfo rootNode = getRootInActiveWindow();
                 if (rootNode != null) {
-                    // Si aparece "Security Kambery" (nombre de la app) o "Desinstalar" en la pantalla activa de Ajustes
-                    if (containsText(rootNode, "Security Kambery") || containsText(rootNode, "Desinstalar") || containsText(rootNode, "Uninstall")) {
-                        Log.w(TAG, "Detección crítica de desinstalación. Bloqueando de inmediato.");
+                    // Verificamos si en la pantalla actual aparece nuestra app o términos de desinstalación
+                    boolean mentionsApp = containsText(rootNode, "Security Kambery") || containsText(rootNode, getPackageName());
+                    boolean mentionsAction = containsText(rootNode, "Desinstalar") || 
+                                           containsText(rootNode, "Uninstall") || 
+                                           containsText(rootNode, "Eliminar") ||
+                                           containsText(rootNode, "Administradores"); // Bloquear desactivación de Device Admin
+
+                    if (mentionsApp && mentionsAction) {
+                        Log.w(TAG, "Intento de desinstalación o desactivación detectado.");
                         launchUninstallGuard();
                         rootNode.recycle();
                         return;
@@ -139,7 +147,8 @@ public class ParentalAccessibilityService extends AccessibilityService {
 
         // --- BLOQUEO DE OTRAS APPS ---
         if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            if (pkgName.equals("android") || pkgName.contains("launcher") || pkgName.equals("com.android.settings")) return;
+            // No bloquear ajustes en general, solo cuando intentan borrar la app (manejado arriba)
+            if (pkgName.equals("android") || pkgName.contains("launcher") || pkgName.contains("settings")) return;
             checkAndEnforce(pkgName);
         }
     }
@@ -148,32 +157,60 @@ public class ParentalAccessibilityService extends AccessibilityService {
         return prefs != null && prefs.getBoolean("isLinked", false);
     }
 
+    private boolean isUninstallAllowed() {
+        return prefs != null && prefs.getBoolean("allow_uninstall", false);
+    }
+
     private boolean containsText(AccessibilityNodeInfo node, String text) {
         if (node == null || text == null) return false;
+        
+        // 1. Intento rápido con el sistema
         List<AccessibilityNodeInfo> found = node.findAccessibilityNodeInfosByText(text);
         if (found != null && !found.isEmpty()) {
             for (AccessibilityNodeInfo n : found) n.recycle();
             return true;
+        }
+        
+        // 2. Búsqueda recursiva manual por si el sistema omite nodos
+        for (int i = 0; i < node.getChildCount(); i++) {
+            AccessibilityNodeInfo child = node.getChild(i);
+            if (child != null) {
+                CharSequence nodeText = child.getText();
+                CharSequence nodeContent = child.getContentDescription();
+                
+                if ((nodeText != null && nodeText.toString().toLowerCase().contains(text.toLowerCase())) ||
+                    (nodeContent != null && nodeContent.toString().toLowerCase().contains(text.toLowerCase()))) {
+                    child.recycle();
+                    return true;
+                }
+                
+                if (containsText(child, text)) {
+                    child.recycle();
+                    return true;
+                }
+                child.recycle();
+            }
         }
         return false;
     }
 
     private void launchUninstallGuard() {
         long currentTime = System.currentTimeMillis();
-        // Debounce muy corto (300ms) para no perder intentos rápidos del niño
-        if (currentTime - lastBlockTime < 300) return;
+        if (currentTime - lastBlockTime < 1000) return; 
         lastBlockTime = currentTime;
 
-        // 1. Forzar salida al Home (Interrupción física)
+        // Salir al Home para interrumpir la acción del sistema
         performGlobalAction(GLOBAL_ACTION_HOME);
 
-        // 2. Lanzar la pantalla de código con máxima prioridad
-        Intent intent = new Intent(this, UninstallGuardActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | 
-                      Intent.FLAG_ACTIVITY_CLEAR_TOP | 
-                      Intent.FLAG_ACTIVITY_REORDER_TO_FRONT |
-                      Intent.FLAG_ACTIVITY_NO_ANIMATION);
-        startActivity(intent);
+        // Lanzar el panel de código
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            Intent intent = new Intent(this, UninstallGuardActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | 
+                          Intent.FLAG_ACTIVITY_CLEAR_TOP | 
+                          Intent.FLAG_ACTIVITY_REORDER_TO_FRONT |
+                          Intent.FLAG_ACTIVITY_NO_ANIMATION);
+            startActivity(intent);
+        }, 100);
     }
 
     private void checkAndEnforce(String pkgName) {
