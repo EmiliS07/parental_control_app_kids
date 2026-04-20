@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F44336"
+    android:background="#FFFFFF"
     android:gravity="center"
     android:orientation="vertical"
     android:padding="32dp">
@@ -10,35 +11,42 @@
     <ImageView
         android:layout_width="100dp"
         android:layout_height="100dp"
-        android:src="@android:drawable/ic_lock_lock"
         android:contentDescription="Bloqueado"
-        android:tint="@android:color/white" />
+        android:src="@android:drawable/ic_lock_lock"
+        app:tint="#F44336" />
 
     <TextView
         android:id="@+id/tvBlockedTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
+        android:fontFamily="sans-serif-medium"
         android:text="Aplicación Bloqueada"
-        android:textColor="@android:color/white"
-        android:textSize="24sp"
+        android:textColor="#212121"
+        android:textSize="26sp"
         android:textStyle="bold" />
 
     <TextView
         android:id="@+id/tvBlockedReason"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="12dp"
         android:gravity="center"
+        android:lineSpacingExtra="4dp"
         android:text="Esta aplicación ha superado el límite de tiempo o no está permitida en este momento."
-        android:textColor="@android:color/white"
-        android:textSize="18sp" />
+        android:textColor="#616161"
+        android:textSize="17sp" />
 
-    <Button
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/btnGoHome"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
-        android:text="Ir al Inicio" />
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_marginTop="40dp"
+        android:text="Ir al Inicio"
+        android:textAllCaps="false"
+        android:textSize="16sp"
+        app:backgroundTint="#F44336"
+        app:cornerRadius="16dp"
+        app:elevation="4dp" />
 
 </LinearLayout>
