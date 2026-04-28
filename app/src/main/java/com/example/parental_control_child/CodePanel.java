@@ -65,17 +65,14 @@ public class CodePanel extends AppCompatActivity {
         btnLink = findViewById(R.id.btnLink);
         tvStatus = findViewById(R.id.tvStatus);
 
-        // Aseguramos que el botón empiece deshabilitado
         btnLink.setEnabled(false);
 
-        // Escucha cambios en el texto para habilitar el botón solo con 6 dígitos
         etCode.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                // Solo se puede presionar si se han ingresado 6 caracteres
                 btnLink.setEnabled(s.toString().trim().length() == 6);
             }
 
@@ -90,32 +87,28 @@ public class CodePanel extends AppCompatActivity {
     private void signInAnonymously() {
         if (mAuth.getCurrentUser() == null) {
             mAuth.signInAnonymously()
-                .addOnSuccessListener(result -> Log.d(TAG, "Sesión anónima iniciada: " + result.getUser().getUid()))
+                .addOnSuccessListener(result -> {
+                    if (result.getUser() != null) {
+                        Log.d(TAG, "Sesión anónima iniciada: " + result.getUser().getUid());
+                    }
+                })
                 .addOnFailureListener(e -> Log.e(TAG, "Error en sesión anónima", e));
         }
     }
 
     private void validateAndLink() {
         String code = etCode.getText().toString().trim();
-        
-        // Deshabilitar UI durante la verificación
         btnLink.setEnabled(false);
         etCode.setEnabled(false);
         showStatus("Verificando código...", true);
 
-        Log.d(TAG, "Buscando código: " + code);
-
-        // BUSQUEDA EN LA BASE DE DATOS (Firestore)
         db.collection("parents")
                 .whereEqualTo("linkCode", code)
                 .get()
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful()) {
                         if (task.getResult() != null && !task.getResult().isEmpty()) {
-                            // El código existe en la base de datos
                             String parentId = task.getResult().getDocuments().get(0).getId();
-                            Log.d(TAG, "Padre encontrado: " + parentId);
-                            
                             FirebaseUser user = mAuth.getCurrentUser();
                             if (user != null) {
                                 completeLinking(parentId, code);
@@ -129,12 +122,10 @@ public class CodePanel extends AppCompatActivity {
                                 });
                             }
                         } else {
-                            Log.d(TAG, "Código no encontrado: " + code);
                             showStatus("❌ Código inválido", false);
                             resetUI();
                         }
                     } else {
-                        Log.e(TAG, "Error Firestore: ", task.getException());
                         showStatus("❌ Error de red", false);
                         resetUI();
                     }
@@ -142,7 +133,6 @@ public class CodePanel extends AppCompatActivity {
     }
 
     private void resetUI() {
-        // Permitir reintentar si falló
         btnLink.setEnabled(true);
         etCode.setEnabled(true);
     }
@@ -190,13 +180,11 @@ public class CodePanel extends AppCompatActivity {
                                     new Handler().postDelayed(this::goToAppLauncher, 1000);
                                 })
                                 .addOnFailureListener(e -> {
-                                    Log.e(TAG, "Error actualizando padre: ", e);
                                     showStatus("❌ Error de permisos", false);
                                     resetUI();
                                 });
                     })
                     .addOnFailureListener(e -> {
-                        Log.e(TAG, "Error creando hijo: ", e);
                         showStatus("❌ Error al guardar", false);
                         resetUI();
                     });
@@ -209,7 +197,8 @@ public class CodePanel extends AppCompatActivity {
                 String token = task.getResult();
                 Map<String, Object> data = new HashMap<>();
                 data.put("fcmToken", token);
-                db.collection("children").document(mAuth.getCurrentUser().getUid()).set(data, com.google.firebase.firestore.SetOptions.merge());
+                db.collection("children").document(mAuth.getCurrentUser().getUid())
+                        .set(data, com.google.firebase.firestore.SetOptions.merge());
             }
         });
     }
@@ -237,10 +226,10 @@ public class CodePanel extends AppCompatActivity {
         finish();
     }
 
-    @SuppressWarnings("deprecation")
     private void showStatus(String message, boolean isSuccess) {
         tvStatus.setText(message);
-        tvStatus.setTextColor(getResources().getColor(isSuccess ? android.R.color.holo_green_dark : android.R.color.holo_red_dark));
+        int colorRes = isSuccess ? android.R.color.holo_green_dark : android.R.color.holo_red_dark;
+        tvStatus.setTextColor(ContextCompat.getColor(this, colorRes));
         tvStatus.setVisibility(View.VISIBLE);
     }
 }
