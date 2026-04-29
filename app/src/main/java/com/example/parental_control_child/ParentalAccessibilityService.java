@@ -37,6 +37,7 @@ public class ParentalAccessibilityService extends AccessibilityService {
     private final Map<String, AppConfig> appConfigs = new HashMap<>();
     private String lastBlockedPackage = "";
     private long lastBlockTime = 0;
+    private long lastGuardTime = 0;
 
     private static class AppConfig {
         String packageName;
@@ -61,24 +62,23 @@ public class ParentalAccessibilityService extends AccessibilityService {
         prefs = getSharedPreferences("ParentalControl", MODE_PRIVATE);
         
         AccessibilityServiceInfo info = new AccessibilityServiceInfo();
-        // Escuchamos cambios de estado de ventana y contenido de forma instantánea
-        info.eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED | 
-                         AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED;
+        // Escuchamos absolutamente todos los eventos para una vigilancia total y sin escapes
+        info.eventTypes = AccessibilityEvent.TYPES_ALL_MASK;
         info.feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC;
         info.flags = AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS |
-                     AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS;
-        info.notificationTimeout = 0; 
+                     AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS |
+                     AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS;
+        info.notificationTimeout = 0;
         setServiceInfo(info);
 
-        Log.d(TAG, "Servicio de Accesibilidad Conectado");
+        Log.d(TAG, "!!! SERVICIO DE SEGURIDAD ACTIVADO Y REFORZADO !!!");
         startListeningToFirestore();
     }
 
     private void startListeningToFirestore() {
         FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
         if (user == null) {
-            Log.d(TAG, "Usuario no autenticado, reintentando escucha en 5s...");
-            new Handler(Looper.getMainLooper()).postDelayed(this::startListeningToFirestore, 5000);
+            new Handler(Looper.getMainLooper()).postDelayed(this::startListeningToFirestore, 2000);
             return;
         }
 
@@ -86,13 +86,8 @@ public class ParentalAccessibilityService extends AccessibilityService {
 
         blockListener = db.collection("children").document(user.getUid())
                 .addSnapshotListener((snapshot, e) -> {
-                    if (e != null) {
-                        Log.e(TAG, "Error en Firestore Listener", e);
-                        return;
-                    }
-                    if (snapshot != null && snapshot.exists()) {
-                        updateConfig(snapshot);
-                    }
+                    if (e != null || snapshot == null || !snapshot.exists()) return;
+                    updateConfig(snapshot);
                 });
     }
 
@@ -106,24 +101,15 @@ public class ParentalAccessibilityService extends AccessibilityService {
                         Map<String, Object> data = (Map<String, Object>) value;
                         String pkg = (String) data.get("packageName");
                         if (pkg == null) continue;
-                        
                         boolean blocked = Boolean.TRUE.equals(data.get("blocked"));
                         long limit = 0;
-                        if (data.get("timeLimitMinutes") instanceof Number) {
-                            limit = ((Number) data.get("timeLimitMinutes")).longValue();
-                        }
-                        String start = (String) data.get("startTime");
-                        String end = (String) data.get("endTime");
-
-                        newConfigs.put(pkg, new AppConfig(pkg, blocked, limit, start, end));
+                        if (data.get("timeLimitMinutes") instanceof Number) limit = ((Number) data.get("timeLimitMinutes")).longValue();
+                        newConfigs.put(pkg, new AppConfig(pkg, blocked, limit, (String) data.get("startTime"), (String) data.get("endTime")));
                     }
                 }
             }
-            Log.d(TAG, "Configuración de apps actualizada: " + newConfigs.size() + " apps");
-        } catch (Exception e) { 
-            Log.e(TAG, "Error parseando appsMap", e); 
-        }
-
+            Log.d(TAG, "Configuración actualizada de Firestore: " + newConfigs.size() + " apps configuradas.");
+        } catch (Exception ignored) {}
         synchronized (appConfigs) {
             appConfigs.clear();
             appConfigs.putAll(newConfigs);
@@ -135,31 +121,92 @@ public class ParentalAccessibilityService extends AccessibilityService {
         if (event == null || event.getPackageName() == null) return;
         String pkgName = event.getPackageName().toString();
 
-        // No actuar si somos nosotros mismos o la pantalla de bloqueo
-        if (pkgName.equals(getPackageName()) || pkgName.contains("BlockedActivity")) return;
+        // No actuar sobre nosotros mismos para evitar bucles infinitos
+        if (pkgName.equals(getPackageName()) || 
+            pkgName.contains("BlockedActivity") || 
+            pkgName.contains("UninstallGuardActivity")) return;
 
-        // Escudo antidesinstalación
-        if (isLinked() && !isUninstallAllowed()) {
-            if (pkgName.contains("settings") || pkgName.contains("packageinstaller")) {
-                checkUninstallAttempt();
+        // 1. PROTECCIÓN CRÍTICA: Bloquear desinstalación y acceso a info de app
+        if (!isUninstallAllowed()) {
+            if (isCriticalPage(pkgName)) {
+                checkAndBlockCriticalAccess(event);
             }
         }
 
-        // BLOQUEO POR SUPERPOSICIÓN (Sin sacar al niño automáticamente al Home)
-        checkAndEnforce(pkgName);
+        // 2. BLOQUEO POR REGLAS (Tiempo Límite, Manual o Horario)
+        // Verificamos en cada cambio de ventana o contenido para que el panel de "Time Out" salga sí o sí
+        int type = event.getEventType();
+        if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || 
+            type == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+            checkAndEnforce(pkgName);
+        }
     }
 
-    private void checkUninstallAttempt() {
+    private boolean isCriticalPage(String pkgName) {
+        String p = pkgName.toLowerCase();
+        return p.contains("settings") || p.contains("packageinstaller") || 
+               p.contains("vending") || p.contains("installer") || 
+               p.contains("security") || p.contains("details") || 
+               p.contains("info") || p.contains("perm") ||
+               p.contains("google.android.gms") || p.contains("systemui");
+    }
+
+    private void checkAndBlockCriticalAccess(AccessibilityEvent event) {
         AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root == null) root = event.getSource();
         if (root == null) return;
-        List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText("Security Kambery");
-        if (nodes != null && !nodes.isEmpty()) {
-            Log.w(TAG, "Intento de desinstalación detectado. Volviendo al Home para proteger.");
-            performGlobalAction(GLOBAL_ACTION_HOME);
-            launchActivity(UninstallGuardActivity.class, null, null);
-            for(AccessibilityNodeInfo n : nodes) n.recycle();
+
+        // Buscamos "Security Kambery" o "Kambery" para detectar si intentan manipular nuestra app
+        boolean detected = false;
+        if (searchForText(root, "Security Kambery") || searchForText(root, "Kambery")) {
+            detected = true;
+        }
+
+        // Fallback: revisar el texto del evento directamente (útil para diálogos rápidos)
+        if (!detected && event.getText() != null) {
+            for (CharSequence t : event.getText()) {
+                if (t != null && t.toString().toLowerCase().contains("kambery")) {
+                    detected = true;
+                    break;
+                }
+            }
+        }
+
+        if (detected) {
+            long now = System.currentTimeMillis();
+            if (now - lastGuardTime > 1500) {
+                lastGuardTime = now;
+                Log.w(TAG, "!!! INTENTO DE MANIPULACIÓN DETECTADO !!! Protegiendo la aplicación.");
+                
+                // Forzamos salida al Home e inmediatamente lanzamos el panel de guardia
+                performGlobalAction(GLOBAL_ACTION_HOME);
+                
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    Intent intent = new Intent(this, UninstallGuardActivity.class);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | 
+                                  Intent.FLAG_ACTIVITY_REORDER_TO_FRONT |
+                                  Intent.FLAG_ACTIVITY_CLEAR_TOP |
+                                  Intent.FLAG_ACTIVITY_SINGLE_TOP |
+                                  Intent.FLAG_ACTIVITY_NO_ANIMATION);
+                    try {
+                        startActivity(intent);
+                    } catch (Exception e) {
+                        Log.e(TAG, "Fallo al lanzar panel de guardia: " + e.getMessage());
+                    }
+                }, 200);
+            }
         }
         root.recycle();
+    }
+    
+    private boolean searchForText(AccessibilityNodeInfo node, String text) {
+        if (node == null) return false;
+        List<AccessibilityNodeInfo> nodes = node.findAccessibilityNodeInfosByText(text);
+        if (nodes != null && !nodes.isEmpty()) {
+            for (AccessibilityNodeInfo n : nodes) n.recycle();
+            return true;
+        }
+        return false;
     }
 
     private void checkAndEnforce(String pkgName) {
@@ -177,36 +224,32 @@ public class ParentalAccessibilityService extends AccessibilityService {
         }
         
         if (reason != null) {
-            Log.d(TAG, "App restringida detectada: " + pkgName + ". Mostrando pantalla de bloqueo.");
-            launchActivity(BlockedActivity.class, reason, pkgName);
+            long now = System.currentTimeMillis();
+            if (pkgName.equals(lastBlockedPackage) && (now - lastBlockTime < 1500)) return;
+            lastBlockedPackage = pkgName;
+            lastBlockTime = now;
+
+            Log.d(TAG, "RESTRICCIÓN DETECTADA: Lanzando panel de bloqueo para " + pkgName + " por " + reason);
+
+            Intent intent = new Intent(this, BlockedActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | 
+                          Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | 
+                          Intent.FLAG_ACTIVITY_CLEAR_TOP |
+                          Intent.FLAG_ACTIVITY_SINGLE_TOP |
+                          Intent.FLAG_ACTIVITY_NO_ANIMATION);
+            intent.putExtra("reason", reason);
+            intent.putExtra("packageName", pkgName);
+            try {
+                startActivity(intent);
+            } catch (Exception e) {
+                Log.e(TAG, "Fallo al lanzar panel de tiempo agotado: " + e.getMessage());
+            }
         }
     }
 
-    private void launchActivity(Class<?> cls, String reason, String pkg) {
-        long now = System.currentTimeMillis();
-        // Cooldown muy bajo (300ms) para evitar que el niño interactúe con la app pero no saturar el sistema
-        if (pkg != null && pkg.equals(lastBlockedPackage) && (now - lastBlockTime < 300)) return;
-        
-        lastBlockedPackage = pkg != null ? pkg : "";
-        lastBlockTime = now;
-
-        Intent intent = new Intent(this, cls);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | 
-                      Intent.FLAG_ACTIVITY_REORDER_TO_FRONT |
-                      Intent.FLAG_ACTIVITY_SINGLE_TOP |
-                      Intent.FLAG_ACTIVITY_NO_ANIMATION);
-        if (reason != null) intent.putExtra("reason", reason);
-        if (pkg != null) intent.putExtra("packageName", pkg);
-        
-        try {
-            startActivity(intent);
-        } catch (Exception e) {
-            Log.e(TAG, "Error lanzando actividad de bloqueo: " + cls.getSimpleName(), e);
-        }
+    private boolean isUninstallAllowed() { 
+        return prefs != null && prefs.getBoolean("allow_uninstall", false); 
     }
-
-    private boolean isLinked() { return prefs != null && prefs.getBoolean("isLinked", false); }
-    private boolean isUninstallAllowed() { return prefs != null && prefs.getBoolean("allow_uninstall", false); }
 
     private long getTodayUsageMinutes(String packageName) {
         UsageStatsManager usm = (UsageStatsManager) getSystemService(Context.USAGE_STATS_SERVICE);
@@ -221,13 +264,11 @@ public class ParentalAccessibilityService extends AccessibilityService {
 
     private boolean isTimeInRestrictedRange(String start, String end) {
         try {
-            if (start == null || end == null) return false;
             SimpleDateFormat sdf = new SimpleDateFormat("HH:mm", Locale.getDefault());
             Date now = sdf.parse(sdf.format(new Date()));
             Date s = sdf.parse(start); 
             Date e = sdf.parse(end);
             if (now == null || s == null || e == null) return false;
-            
             if (e.before(s)) return now.after(s) || now.before(e);
             else return now.after(s) && now.before(e);
         } catch (Exception e) { return false; }
