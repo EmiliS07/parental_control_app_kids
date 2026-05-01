@@ -62,16 +62,17 @@ public class ParentalAccessibilityService extends AccessibilityService {
         prefs = getSharedPreferences("ParentalControl", MODE_PRIVATE);
         
         AccessibilityServiceInfo info = new AccessibilityServiceInfo();
-        // Escuchamos absolutamente todos los eventos para una vigilancia total y sin escapes
-        info.eventTypes = AccessibilityEvent.TYPES_ALL_MASK;
+        // Reducimos el ruido: solo nos interesan cambios de ventana y contenido relevante
+        info.eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED | 
+                         AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED;
         info.feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC;
         info.flags = AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS |
                      AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS |
                      AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS;
-        info.notificationTimeout = 0;
+        info.notificationTimeout = 100;
         setServiceInfo(info);
 
-        Log.d(TAG, "!!! SERVICIO DE SEGURIDAD ACTIVADO Y REFORZADO !!!");
+        Log.d(TAG, "!!! SERVICIO DE SEGURIDAD OPTIMIZADO ACTIVADO !!!");
         startListeningToFirestore();
     }
 
@@ -108,7 +109,6 @@ public class ParentalAccessibilityService extends AccessibilityService {
                     }
                 }
             }
-            Log.d(TAG, "Configuración actualizada de Firestore: " + newConfigs.size() + " apps configuradas.");
         } catch (Exception ignored) {}
         synchronized (appConfigs) {
             appConfigs.clear();
@@ -119,94 +119,97 @@ public class ParentalAccessibilityService extends AccessibilityService {
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         if (event == null || event.getPackageName() == null) return;
+        
+        int eventType = event.getEventType();
+        
+        // IGNORAR NOTIFICACIONES Y OTROS EVENTOS RUIDOSOS
+        if (eventType == AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED) return;
+
         String pkgName = event.getPackageName().toString();
 
-        // No actuar sobre nosotros mismos para evitar bucles infinitos
+        // No actuar sobre nuestra propia app
         if (pkgName.equals(getPackageName()) || 
             pkgName.contains("BlockedActivity") || 
             pkgName.contains("UninstallGuardActivity")) return;
 
-        // 1. PROTECCIÓN CRÍTICA: Bloquear desinstalación y acceso a info de app
-        if (!isUninstallAllowed()) {
-            if (isCriticalPage(pkgName)) {
-                checkAndBlockCriticalAccess(event);
+        // 1. PROTECCIÓN ESPECÍFICA: Bloquear SOLO desinstalación y acceso a info de ESTA APP
+        if (!isUninstallAllowed() && eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            if (isSystemSettingsOrInstaller(pkgName)) {
+                checkAndBlockSelfProtection(event);
             }
         }
 
-        // 2. BLOQUEO POR REGLAS (Tiempo Límite, Manual o Horario)
-        // Verificamos en cada cambio de ventana o contenido para que el panel de "Time Out" salga sí o sí
-        int type = event.getEventType();
-        if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || 
-            type == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+        // 2. BLOQUEO POR REGLAS (Tiempo Límite, etc.)
+        // Solo verificamos cuando cambia la ventana principal para evitar lentitud y falsos positivos
+        if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             checkAndEnforce(pkgName);
         }
     }
 
-    private boolean isCriticalPage(String pkgName) {
+    private boolean isSystemSettingsOrInstaller(String pkgName) {
         String p = pkgName.toLowerCase();
-        return p.contains("settings") || p.contains("packageinstaller") || 
-               p.contains("vending") || p.contains("installer") || 
-               p.contains("security") || p.contains("details") || 
-               p.contains("info") || p.contains("perm") ||
-               p.contains("google.android.gms") || p.contains("systemui");
+        // Solo monitoreamos Ajustes y el Instalador de paquetes
+        // Eliminamos "gms" y "systemui" que causaban bloqueos por notificaciones
+        return p.contains("settings") || p.contains("packageinstaller") || p.contains("vending");
     }
 
-    private void checkAndBlockCriticalAccess(AccessibilityEvent event) {
+    private void checkAndBlockSelfProtection(AccessibilityEvent event) {
+        // Ignorar si estamos simplemente viendo la lista de todas las aplicaciones
+        CharSequence className = event.getClassName();
+        if (className != null) {
+            String c = className.toString().toLowerCase();
+            if (c.contains("manageapplications") || c.contains("list") || c.contains("tabactivity")) {
+                return; 
+            }
+        }
+
         AccessibilityNodeInfo root = getRootInActiveWindow();
         if (root == null) root = event.getSource();
         if (root == null) return;
 
-        // Buscamos "Security Kambery" o "Kambery" para detectar si intentan manipular nuestra app
-        boolean detected = false;
-        if (searchForText(root, "Security Kambery") || searchForText(root, "Kambery")) {
-            detected = true;
-        }
-
-        // Fallback: revisar el texto del evento directamente (útil para diálogos rápidos)
-        if (!detected && event.getText() != null) {
+        // Buscamos si "Kambery" aparece como foco de la pantalla de ajustes/instalación
+        boolean isOurAppTargeted = false;
+        
+        // Verificar título de la ventana
+        if (event.getText() != null) {
             for (CharSequence t : event.getText()) {
-                if (t != null && t.toString().toLowerCase().contains("kambery")) {
-                    detected = true;
+                if (t != null && t.toString().equalsIgnoreCase("Kambery")) {
+                    isOurAppTargeted = true;
                     break;
                 }
             }
         }
 
-        if (detected) {
+        // Si no se detectó en el título, buscamos en el contenido pero con precaución
+        if (!isOurAppTargeted) {
+            List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText("Kambery");
+            if (nodes != null && !nodes.isEmpty()) {
+                // Si encontramos "Kambery" en una pantalla de Ajustes o Instalador que NO es la lista general
+                isOurAppTargeted = true;
+                for (AccessibilityNodeInfo n : nodes) n.recycle();
+            }
+        }
+
+        if (isOurAppTargeted) {
             long now = System.currentTimeMillis();
-            if (now - lastGuardTime > 1500) {
+            if (now - lastGuardTime > 2000) {
                 lastGuardTime = now;
-                Log.w(TAG, "!!! INTENTO DE MANIPULACIÓN DETECTADO !!! Protegiendo la aplicación.");
+                Log.w(TAG, "Protegiendo Kambery de desinstalación/cambios...");
                 
-                // Forzamos salida al Home e inmediatamente lanzamos el panel de guardia
                 performGlobalAction(GLOBAL_ACTION_HOME);
                 
                 new Handler(Looper.getMainLooper()).postDelayed(() -> {
                     Intent intent = new Intent(this, UninstallGuardActivity.class);
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | 
                                   Intent.FLAG_ACTIVITY_REORDER_TO_FRONT |
-                                  Intent.FLAG_ACTIVITY_CLEAR_TOP |
-                                  Intent.FLAG_ACTIVITY_SINGLE_TOP |
-                                  Intent.FLAG_ACTIVITY_NO_ANIMATION);
+                                  Intent.FLAG_ACTIVITY_CLEAR_TOP);
                     try {
                         startActivity(intent);
-                    } catch (Exception e) {
-                        Log.e(TAG, "Fallo al lanzar panel de guardia: " + e.getMessage());
-                    }
-                }, 200);
+                    } catch (Exception ignored) {}
+                }, 150);
             }
         }
         root.recycle();
-    }
-    
-    private boolean searchForText(AccessibilityNodeInfo node, String text) {
-        if (node == null) return false;
-        List<AccessibilityNodeInfo> nodes = node.findAccessibilityNodeInfosByText(text);
-        if (nodes != null && !nodes.isEmpty()) {
-            for (AccessibilityNodeInfo n : nodes) n.recycle();
-            return true;
-        }
-        return false;
     }
 
     private void checkAndEnforce(String pkgName) {
@@ -216,34 +219,28 @@ public class ParentalAccessibilityService extends AccessibilityService {
 
         String reason = null;
         if (config.blocked) {
-            reason = "Esta aplicación ha sido bloqueada por tus padres.";
+            reason = "Esta aplicación está bloqueada.";
         } else if (config.timeLimitMinutes > 0 && getTodayUsageMinutes(pkgName) >= config.timeLimitMinutes) {
-            reason = "Has alcanzado el límite de tiempo diario.";
+            reason = "Se agotó el tiempo de uso diario.";
         } else if (config.startTime != null && config.endTime != null && isTimeInRestrictedRange(config.startTime, config.endTime)) {
-            reason = "No puedes usar esta app en este horario.";
+            reason = "Horario restringido.";
         }
         
         if (reason != null) {
             long now = System.currentTimeMillis();
-            if (pkgName.equals(lastBlockedPackage) && (now - lastBlockTime < 1500)) return;
+            if (pkgName.equals(lastBlockedPackage) && (now - lastBlockTime < 2000)) return;
             lastBlockedPackage = pkgName;
             lastBlockTime = now;
-
-            Log.d(TAG, "RESTRICCIÓN DETECTADA: Lanzando panel de bloqueo para " + pkgName + " por " + reason);
 
             Intent intent = new Intent(this, BlockedActivity.class);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | 
                           Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | 
-                          Intent.FLAG_ACTIVITY_CLEAR_TOP |
-                          Intent.FLAG_ACTIVITY_SINGLE_TOP |
-                          Intent.FLAG_ACTIVITY_NO_ANIMATION);
+                          Intent.FLAG_ACTIVITY_CLEAR_TOP);
             intent.putExtra("reason", reason);
             intent.putExtra("packageName", pkgName);
             try {
                 startActivity(intent);
-            } catch (Exception e) {
-                Log.e(TAG, "Fallo al lanzar panel de tiempo agotado: " + e.getMessage());
-            }
+            } catch (Exception ignored) {}
         }
     }
 
